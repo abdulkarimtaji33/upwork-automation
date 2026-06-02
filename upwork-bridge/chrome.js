@@ -1,6 +1,29 @@
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 const fs = require('fs');
 const puppeteer = require('puppeteer-core');
+
+let xvfbProcess = null;
+const DISPLAY_NUM = process.env.DISPLAY_NUM || '99';
+const XVFB_DISPLAY = `:${DISPLAY_NUM}`;
+
+function ensureXvfb() {
+  if (process.platform === 'win32') return; // not needed on Windows
+  if (xvfbProcess && !xvfbProcess.killed) return;
+  // Check if Xvfb is already running on this display
+  try { execSync(`xdpyinfo -display ${XVFB_DISPLAY}`, { stdio: 'ignore' }); return; } catch { /* not running */ }
+  console.log(`[xvfb] Starting Xvfb on display ${XVFB_DISPLAY}`);
+  xvfbProcess = spawn('Xvfb', [XVFB_DISPLAY, '-screen', '0', '1920x1080x24', '-ac'], {
+    detached: false, stdio: 'ignore',
+  });
+  xvfbProcess.on('exit', () => { xvfbProcess = null; });
+  // Give Xvfb a moment to start
+  const start = Date.now();
+  while (Date.now() - start < 3000) {
+    try { execSync(`xdpyinfo -display ${XVFB_DISPLAY}`, { stdio: 'ignore' }); break; } catch { /* wait */ }
+    const deadline = Date.now() + 200;
+    while (Date.now() < deadline) { /* busy-wait */ }
+  }
+}
 const {
   CDP_BASE,
   CDP_PORT,
@@ -59,15 +82,15 @@ function launchChrome() {
   if (!chrome) throw new Error('Google Chrome not found');
 
   if (chromeProcess && !chromeProcess.killed) {
-    try {
-      chromeProcess.kill();
-    } catch {
-      /* ignore */
-    }
+    try { chromeProcess.kill(); } catch { /* ignore */ }
   }
 
+  ensureXvfb();
   fs.mkdirSync(PROFILE, { recursive: true });
   console.log(`[chrome] Launching with profile ${PROFILE}`);
+
+  const env = { ...process.env };
+  if (process.platform !== 'win32') env.DISPLAY = XVFB_DISPLAY;
 
   chromeProcess = spawn(
     chrome,
@@ -84,10 +107,9 @@ function launchChrome() {
       '--disable-blink-features=AutomationControlled',
       '--disable-features=IsolateOrigins,site-per-process',
       '--window-size=1920,1080',
-      ...(process.platform !== 'win32' ? ['--headless=new'] : []),
       JOBS_URL,
     ],
-    { detached: false, stdio: 'ignore' },
+    { detached: false, stdio: 'ignore', env },
   );
 
   chromeProcess.on('exit', () => {
