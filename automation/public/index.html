@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upwork Automation</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, body { font-family: 'Inter', sans-serif; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    html { background: #020617; }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    @keyframes fadeSlideIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .anim-in { animation: fadeSlideIn 0.35s ease-out both; }
+
+    @keyframes pulseRing {
+      0%   { transform: scale(1);   opacity: 1; }
+      70%  { transform: scale(1.8); opacity: 0; }
+      100% { transform: scale(1.8); opacity: 0; }
+    }
+    .pulse-ring::before {
+      content: '';
+      position: absolute; inset: 0;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulseRing 1.8s ease-out infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { animation: spin 1s linear infinite; }
+
+    .score-bar { transition: width 0.6s cubic-bezier(.4,0,.2,1); }
+
+    .glass {
+      background: rgba(15,23,42,0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    .proposal-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.4s ease;
+    }
+    .proposal-content.open { max-height: 600px; }
+
+    /* Settings drawer */
+    #settings-drawer {
+      transform: translateX(100%);
+      transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+    }
+    #settings-drawer.open { transform: translateX(0); }
+    #settings-overlay {
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    #settings-overlay.open { opacity: 1; pointer-events: all; }
+
+    .settings-tab { transition: all 0.15s ease; }
+    .settings-tab.active {
+      background: rgba(99,102,241,.15);
+      color: #a5b4fc;
+      border-color: rgba(99,102,241,.4);
+    }
+
+    .field label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: #64748b; margin-bottom: 6px; }
+    .field input, .field textarea, .field select {
+      width: 100%; background: #0f172a; border: 1px solid #1e293b; border-radius: 10px;
+      color: #f1f5f9; font-size: 13px; padding: 8px 12px; outline: none;
+      transition: border-color .15s;
+    }
+    .field input:focus, .field textarea:focus, .field select:focus { border-color: #6366f1; }
+    .field textarea { resize: vertical; font-family: 'Inter', sans-serif; line-height: 1.5; }
+    .field select { cursor: pointer; }
+  </style>
+</head>
+<body class="min-h-screen text-slate-100" style="background:#020617">
+
+<!-- Background grid -->
+<div class="fixed inset-0 pointer-events-none" style="background-image:linear-gradient(rgba(99,102,241,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,.03) 1px,transparent 1px);background-size:48px 48px;"></div>
+
+<!-- ── Header ─────────────────────────────────────────────────────── -->
+<header class="sticky top-0 z-20 border-b border-slate-800/60 glass">
+  <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
+
+    <!-- Brand -->
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+           style="background:linear-gradient(135deg,#14b8a6,#6366f1)">U</div>
+      <div class="min-w-0">
+        <div class="font-semibold text-white text-sm leading-tight">Upwork Automation</div>
+        <div class="text-xs text-slate-500 truncate" id="hdr-sub">Job Bidding Bot</div>
+      </div>
+    </div>
+
+    <!-- Center stats -->
+    <div class="hidden md:flex items-center gap-6 text-sm">
+      <div class="text-center">
+        <div id="hdr-jobs" class="font-semibold text-white">0</div>
+        <div class="text-slate-500 text-xs">Jobs</div>
+      </div>
+      <div class="w-px h-8 bg-slate-800"></div>
+      <div class="text-center">
+        <div id="hdr-relevant" class="font-semibold text-emerald-400">0</div>
+        <div class="text-slate-500 text-xs">Relevant</div>
+      </div>
+      <div class="w-px h-8 bg-slate-800"></div>
+      <div class="text-center">
+        <div id="hdr-emails" class="font-semibold text-blue-400">0</div>
+        <div class="text-slate-500 text-xs">Emails</div>
+      </div>
+    </div>
+
+    <!-- Right -->
+    <div class="flex items-center gap-3 flex-shrink-0">
+      <!-- Status badge -->
+      <div id="status-badge" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700/50 text-xs font-medium">
+        <div class="relative w-2 h-2 flex-shrink-0">
+          <div id="status-dot" class="w-2 h-2 rounded-full bg-slate-500"></div>
+        </div>
+        <span id="status-text" class="text-slate-400">Idle</span>
+      </div>
+      <!-- Run Now -->
+      <button id="stop-btn" onclick="triggerStop()" style="display:none"
+        class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white transition-all duration-200 active:scale-95 bg-red-600 hover:bg-red-500">
+        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clip-rule="evenodd"/></svg>
+        Stop
+      </button>
+      <button id="run-btn" onclick="triggerRun()"
+        class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white transition-all duration-200 active:scale-95"
+        style="background:linear-gradient(135deg,#14b8a6,#6366f1)">
+        <svg id="run-icon" class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>
+        </svg>
+        <span id="run-label">Run Now</span>
+      </button>
+      <button onclick="openSettings()" title="Settings"
+        class="w-9 h-9 rounded-xl bg-slate-800/80 border border-slate-700/50 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 transition-all">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ── Stats row ───────────────────────────────────────────────────── -->
+<div class="max-w-7xl mx-auto px-6 pt-6">
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="rounded-2xl border border-slate-800/60 p-5" style="background:rgba(15,23,42,.6)">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-slate-400 text-xs font-medium uppercase tracking-widest">Cycles</span>
+        <div class="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center">
+          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        </div>
+      </div>
+      <div id="stat-cycles" class="text-3xl font-bold text-white">0</div>
+      <div id="stat-lastrun" class="text-xs text-slate-600 mt-1">Never run</div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-800/60 p-5" style="background:rgba(15,23,42,.6)">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-slate-400 text-xs font-medium uppercase tracking-widest">Processed</span>
+        <div class="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center">
+          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        </div>
+      </div>
+      <div id="stat-jobs" class="text-3xl font-bold text-white">0</div>
+      <div class="text-xs text-slate-600 mt-1">Total jobs found</div>
+    </div>
+
+    <div class="rounded-2xl border border-emerald-900/40 p-5" style="background:rgba(6,78,59,.15)">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-emerald-400/70 text-xs font-medium uppercase tracking-widest">Relevant</span>
+        <div class="w-8 h-8 rounded-lg bg-emerald-900/40 flex items-center justify-center">
+          <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+      </div>
+      <div id="stat-relevant" class="text-3xl font-bold text-emerald-400">0</div>
+      <div class="text-xs text-emerald-900/80 mt-1 text-emerald-600">Matched your criteria</div>
+    </div>
+
+    <div class="rounded-2xl border border-blue-900/40 p-5" style="background:rgba(30,58,138,.15)">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-blue-400/70 text-xs font-medium uppercase tracking-widest">Emails</span>
+        <div class="w-8 h-8 rounded-lg bg-blue-900/40 flex items-center justify-center">
+          <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        </div>
+      </div>
+      <div id="stat-emails" class="text-3xl font-bold text-blue-400">0</div>
+      <div id="stat-emailto" class="text-xs text-blue-900/80 mt-1 text-blue-600 truncate">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Main content ────────────────────────────────────────────────── -->
+<div class="max-w-7xl mx-auto px-6 py-6 grid grid-cols-1 lg:grid-cols-5 gap-6">
+
+  <!-- ── Left: Relevant Jobs ──── -->
+  <div class="lg:col-span-3 min-w-0">
+    <div class="flex items-center justify-between mb-4">
+      <!-- View tabs -->
+      <div class="flex items-center gap-1 bg-slate-900 rounded-xl p-1 border border-slate-800">
+        <button id="tab-all-btn" onclick="switchView('all')"
+          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-white bg-slate-700">
+          All Relevant <span id="tab-all-count" class="ml-1 text-slate-400"></span>
+        </button>
+        <button id="tab-sent-btn" onclick="switchView('sent')"
+          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-500 hover:text-slate-300">
+          ✓ Sent Proposals <span id="tab-sent-count" class="ml-1 text-slate-600"></span>
+        </button>
+      </div>
+      <span id="jobs-count" class="text-xs text-slate-600">0 found</span>
+    </div>
+
+    <!-- Processing indicator -->
+    <div id="processing-bar" class="hidden mb-4 rounded-xl border border-amber-900/40 px-4 py-3 flex items-center gap-3" style="background:rgba(120,53,15,.15)">
+      <div class="w-4 h-4 rounded-full border-2 border-amber-400 border-t-transparent spin flex-shrink-0"></div>
+      <div class="min-w-0">
+        <div class="text-amber-400 text-xs font-medium">Analyzing job</div>
+        <div id="processing-title" class="text-amber-600 text-xs truncate mt-0.5">—</div>
+      </div>
+    </div>
+
+    <div id="jobs-list" class="space-y-4">
+      <!-- Empty state -->
+      <div id="jobs-empty" class="rounded-2xl border border-slate-800/40 p-12 text-center" style="background:rgba(15,23,42,.4)">
+        <div class="w-14 h-14 rounded-2xl bg-slate-800/60 flex items-center justify-center mx-auto mb-4">
+          <svg class="w-7 h-7 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        </div>
+        <p class="text-slate-500 text-sm">No relevant jobs yet</p>
+        <p class="text-slate-700 text-xs mt-1">Click "Run Now" or wait for the next scheduled cycle</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Right: Activity Log ──── -->
+  <div class="lg:col-span-2 min-w-0">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-widest">Live Activity</h2>
+      <button onclick="clearLog()" class="text-xs text-slate-700 hover:text-slate-400 transition-colors">Clear</button>
+    </div>
+    <div id="activity-log"
+         class="mono text-xs rounded-2xl border border-slate-800/60 p-4 overflow-y-auto space-y-1.5"
+         style="background:rgba(2,6,23,.8); height:calc(100vh - 320px); min-height:400px;">
+      <div class="text-slate-700">Connecting to automation…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Proposal Sent Modal ────────────────────────────────────────── -->
+<div id="sent-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,.75);display:none!important">
+  <div class="w-full max-w-md rounded-2xl border border-slate-700/60 overflow-hidden" style="background:#0f172a">
+    <div class="px-6 pt-6 pb-4 border-b border-slate-800">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 class="font-semibold text-white text-sm">Mark Proposal Sent</h3>
+          <p id="sent-modal-title" class="text-xs text-slate-500 mt-0.5 truncate max-w-xs">—</p>
+        </div>
+        <button onclick="closeSentModal()" class="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white flex-shrink-0">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="px-6 py-5 space-y-4">
+      <!-- Notes -->
+      <div class="field">
+        <label>Notes (optional)</label>
+        <textarea id="sent-notes" rows="3" placeholder="e.g. Sent via Upwork on June 2, bid $45/hr…" style="background:#020617;border-color:#1e293b;color:#f1f5f9;font-size:13px;padding:8px 12px;border-radius:10px;width:100%;outline:none;resize:vertical;border:1px solid #1e293b"></textarea>
+      </div>
+      <!-- Evidence upload -->
+      <div class="field">
+        <label>Evidence screenshot (optional)</label>
+        <div id="drop-zone"
+          class="relative rounded-xl border-2 border-dashed border-slate-700/60 hover:border-indigo-700/60 transition-colors cursor-pointer overflow-hidden"
+          onclick="document.getElementById('evidence-input').click()"
+          ondragover="event.preventDefault();this.classList.add('border-indigo-500')"
+          ondragleave="this.classList.remove('border-indigo-500')"
+          ondrop="handleDrop(event)">
+          <input id="evidence-input" type="file" accept="image/*,.pdf" class="hidden" onchange="handleFileSelect(this.files[0])"/>
+          <div id="drop-placeholder" class="flex flex-col items-center py-6 gap-2 text-slate-600">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            <span class="text-xs">Click or drag & drop a screenshot</span>
+            <span class="text-xs text-slate-700">PNG, JPG, PDF — up to 15MB</span>
+          </div>
+          <div id="drop-preview" class="hidden">
+            <img id="preview-img" class="w-full max-h-40 object-cover" src="" alt=""/>
+            <div id="preview-name" class="px-3 py-2 text-xs text-slate-400 bg-slate-900/80 flex items-center justify-between">
+              <span></span>
+              <button onclick="event.stopPropagation();clearFile()" class="text-slate-600 hover:text-red-400 transition-colors">✕ Remove</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="px-6 pb-6 flex gap-3">
+      <button onclick="closeSentModal()" class="flex-1 py-2.5 rounded-xl text-sm font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors">Cancel</button>
+      <button id="sent-confirm-btn" onclick="confirmProposalSent()"
+        class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
+        style="background:linear-gradient(135deg,#14b8a6,#6366f1)">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Settings Overlay ───────────────────────────────────────────── -->
+<div id="settings-overlay" class="fixed inset-0 z-30 bg-black/60" onclick="closeSettings()"></div>
+
+<!-- ── Settings Drawer ────────────────────────────────────────────── -->
+<div id="settings-drawer" class="fixed top-0 right-0 z-40 h-full w-full max-w-lg flex flex-col border-l border-slate-800"
+     style="background:#0a0f1e">
+
+  <!-- Drawer header -->
+  <div class="flex items-center justify-between px-6 py-4 border-b border-slate-800 flex-shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-indigo-900/50 flex items-center justify-center">
+        <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+      </div>
+      <div>
+        <div class="font-semibold text-white text-sm">Settings</div>
+        <div class="text-xs text-slate-500">Changes take effect immediately</div>
+      </div>
+    </div>
+    <button onclick="closeSettings()" class="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="flex gap-1 px-4 pt-4 flex-shrink-0">
+    <button class="settings-tab active px-3 py-1.5 rounded-lg text-xs font-medium border border-transparent text-slate-400" onclick="switchTab('search',this)">Search</button>
+    <button class="settings-tab px-3 py-1.5 rounded-lg text-xs font-medium border border-transparent text-slate-400" onclick="switchTab('schedule',this)">Schedule</button>
+    <button class="settings-tab px-3 py-1.5 rounded-lg text-xs font-medium border border-transparent text-slate-400" onclick="switchTab('ai',this)">AI & Prompts</button>
+    <button class="settings-tab px-3 py-1.5 rounded-lg text-xs font-medium border border-transparent text-slate-400" onclick="switchTab('email',this)">Email</button>
+  </div>
+
+  <!-- Tab content -->
+  <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+
+    <!-- ── Search tab ── -->
+    <div id="tab-search" class="space-y-5">
+      <div class="field">
+        <label>Upwork Search URL</label>
+        <textarea id="s-jobsUrl" rows="5" placeholder="https://www.upwork.com/nx/s/universal-search/jobs/?..."></textarea>
+        <p class="text-xs text-slate-600 mt-1.5">Build your search on Upwork, then paste the full URL here. Controls what jobs get fetched.</p>
+      </div>
+      <div class="field">
+        <label>Pages to fetch per cycle (1–10)</label>
+        <div class="flex items-center gap-3">
+          <input id="s-maxPages" type="range" min="1" max="10" step="1" oninput="document.getElementById('maxPagesVal').textContent=this.value" style="flex:1;accent-color:#6366f1" />
+          <span id="maxPagesVal" class="text-white font-semibold w-6 text-center text-sm">3</span>
+        </div>
+        <p class="text-xs text-slate-600 mt-1">Each page returns up to 50 jobs. More pages = more coverage but slower cycles.</p>
+      </div>
+
+      <div class="rounded-xl border border-slate-800 p-4 space-y-2">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">Quick filters</div>
+        <div class="field">
+          <label>Relevance keywords (comma-separated)</label>
+          <input id="s-aiRelevanceKeywords" type="text" placeholder="developer, website, application, web app" />
+          <p class="text-xs text-slate-600 mt-1">AI will prioritize jobs matching these terms.</p>
+        </div>
+        <div class="field">
+          <label>Exclude keywords (comma-separated)</label>
+          <input id="s-aiExcludeKeywords" type="text" placeholder="wordpress, woocommerce, shopify" />
+          <p class="text-xs text-slate-600 mt-1">AI will deprioritize jobs mentioning these.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Schedule tab ── -->
+    <div id="tab-schedule" class="space-y-5 hidden">
+      <div class="field">
+        <label>Run every</label>
+        <select id="s-schedulePreset" onchange="onSchedulePreset(this.value)">
+          <option value="*/5 * * * *">Every 5 minutes</option>
+          <option value="*/10 * * * *">Every 10 minutes</option>
+          <option value="*/15 * * * *">Every 15 minutes</option>
+          <option value="*/30 * * * *">Every 30 minutes</option>
+          <option value="0 * * * *">Every hour</option>
+          <option value="custom">Custom cron expression</option>
+        </select>
+      </div>
+      <div id="custom-cron-field" class="field hidden">
+        <label>Custom cron expression</label>
+        <input id="s-cronSchedule" type="text" placeholder="*/5 * * * *" />
+        <p class="text-xs text-slate-600 mt-1">Standard 5-field cron syntax. <a href="https://crontab.guru" target="_blank" class="text-indigo-400 hover:underline">crontab.guru ↗</a></p>
+      </div>
+      <div class="rounded-xl border border-slate-800/60 p-4" style="background:rgba(15,23,42,.6)">
+        <div class="text-xs text-slate-500">Current schedule: <span id="schedule-display" class="text-slate-300 font-mono">—</span></div>
+      </div>
+    </div>
+
+    <!-- ── AI tab ── -->
+    <div id="tab-ai" class="space-y-5 hidden">
+      <div class="rounded-xl border border-slate-800/60 p-4 space-y-4" style="background:rgba(15,23,42,.6)">
+        <div class="text-xs font-semibold text-slate-400 uppercase tracking-widest">Your Profile</div>
+        <div class="field">
+          <label>Your Name</label>
+          <input id="s-freelancerName" type="text" placeholder="Abdul Karim Taji" />
+          <p class="text-xs text-slate-600 mt-1">Used to personalize the proposal — AI will introduce you by name.</p>
+        </div>
+        <div class="field">
+          <label>Portfolio URL</label>
+          <input id="s-freelancerPortfolio" type="url" placeholder="https://yourportfolio.com" />
+          <p class="text-xs text-slate-600 mt-1">AI will include this link naturally in every proposal.</p>
+        </div>
+      </div>
+      <div class="field">
+        <label>AI Model</label>
+        <select id="s-aiModel">
+          <option value="gpt-4o-mini">GPT-4o Mini — fast &amp; cheap (recommended)</option>
+          <option value="gpt-4o">GPT-4o — best quality</option>
+          <option value="gpt-4-turbo">GPT-4 Turbo</option>
+          <option value="gpt-3.5-turbo">GPT-3.5 Turbo — cheapest</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Minimum relevance score to send email (0–100)</label>
+        <div class="flex items-center gap-3">
+          <input id="s-minScore" type="range" min="0" max="100" step="5" oninput="document.getElementById('minScoreVal').textContent=this.value" style="flex:1;accent-color:#6366f1" />
+          <span id="minScoreVal" class="text-white font-semibold w-8 text-center text-sm">0</span>
+        </div>
+        <p class="text-xs text-slate-600 mt-1">Only jobs scoring above this threshold will trigger an email.</p>
+      </div>
+      <div class="field">
+        <label>AI System Prompt</label>
+        <textarea id="s-aiSystemPrompt" rows="6" placeholder="You are an expert Upwork job analyst..."></textarea>
+        <p class="text-xs text-slate-600 mt-1">Sets the AI's role and behavior for evaluating jobs.</p>
+      </div>
+    </div>
+
+    <!-- ── Email tab ── -->
+    <div id="tab-email" class="space-y-5 hidden">
+      <div class="field">
+        <label>Action on relevant job</label>
+        <div class="space-y-2 mt-1">
+          <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-700/50 cursor-pointer hover:border-indigo-700/40 transition-colors" style="background:rgba(15,23,42,.6)">
+            <input type="radio" name="emailMode" value="both" class="accent-indigo-500" />
+            <div>
+              <div class="text-sm text-white font-medium">Send email + save to DB</div>
+              <div class="text-xs text-slate-500">Email the proposal AND save to local database</div>
+            </div>
+          </label>
+          <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-700/50 cursor-pointer hover:border-indigo-700/40 transition-colors" style="background:rgba(15,23,42,.6)">
+            <input type="radio" name="emailMode" value="db" class="accent-indigo-500" />
+            <div>
+              <div class="text-sm text-white font-medium">Save to DB only</div>
+              <div class="text-xs text-slate-500">No email — review jobs in the dashboard and decide manually</div>
+            </div>
+          </label>
+          <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-700/50 cursor-pointer hover:border-indigo-700/40 transition-colors" style="background:rgba(15,23,42,.6)">
+            <input type="radio" name="emailMode" value="email" class="accent-indigo-500" />
+            <div>
+              <div class="text-sm text-white font-medium">Send email only</div>
+              <div class="text-xs text-slate-500">Email without saving to local database</div>
+            </div>
+          </label>
+        </div>
+      </div>
+      <div class="field">
+        <label>Send emails to</label>
+        <input id="s-emailTo" type="email" placeholder="you@gmail.com" />
+        <p class="text-xs text-slate-600 mt-1">Relevant job proposals will be emailed here.</p>
+      </div>
+      <div class="rounded-xl border border-amber-900/30 p-4" style="background:rgba(120,53,15,.1)">
+        <div class="text-xs font-semibold text-amber-400 mb-1">API keys &amp; credentials</div>
+        <p class="text-xs text-amber-700">OpenAI API key, Gmail OAuth credentials, and refresh token are stored in <code class="bg-slate-900 px-1 rounded text-amber-500">.env</code> and not editable here for security.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Save button -->
+  <div class="flex-shrink-0 px-6 py-4 border-t border-slate-800 flex items-center gap-3">
+    <button onclick="saveSettings()" id="save-btn"
+      class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all active:scale-95"
+      style="background:linear-gradient(135deg,#14b8a6,#6366f1)">
+      Save Changes
+    </button>
+    <div id="save-status" class="text-xs text-slate-600 hidden"></div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+const state = { stats: { cycles:0, totalJobs:0, relevant:0, emailsSent:0 }, isRunning: false };
+let jobCards = [];
+
+// ── SSE connection ─────────────────────────────────────────────────────────
+function connect() {
+  const es = new EventSource('/events');
+
+  es.addEventListener('init', e => {
+    const d = JSON.parse(e.data);
+    Object.assign(state.stats, d.stats);
+    state.isRunning = d.isRunning;
+    if (d.lastRun) updateLastRun(d.lastRun);
+    renderStats();
+    setStatus(d.isRunning);
+  });
+
+  es.addEventListener('log', e => {
+    const d = JSON.parse(e.data);
+    appendLog(d);
+  });
+
+  es.addEventListener('cycle:start', () => {
+    state.isRunning = true;
+    setStatus(true);
+    appendLog({ type:'info', message:'── New cycle started ──', time: new Date().toISOString() });
+  });
+
+  es.addEventListener('cycle:done', e => {
+    const d = JSON.parse(e.data);
+    state.isRunning = false;
+    Object.assign(state.stats, d.stats);
+    setStatus(false);
+    renderStats();
+    hideProcessing();
+    updateLastRun(new Date().toISOString());
+    if (!d.error) appendLog({ type:'success', message:`Cycle complete — ${d.emailsSent} email(s) sent`, time: new Date().toISOString() });
+  });
+
+  es.addEventListener('jobs:found', e => {
+    const d = JSON.parse(e.data);
+    Object.assign(state.stats, d.stats);
+    renderStats();
+  });
+
+  es.addEventListener('job:processing', e => {
+    const d = JSON.parse(e.data);
+    showProcessing(d.title);
+  });
+
+  es.addEventListener('job:analyzed', e => {
+    const d = JSON.parse(e.data);
+    Object.assign(state.stats, d.stats);
+    renderStats();
+    if (!d.isRelevant) hideProcessing();
+  });
+
+  es.addEventListener('job:relevant', e => {
+    const d = JSON.parse(e.data);
+    Object.assign(state.stats, d.stats);
+    renderStats();
+    hideProcessing();
+    if (currentView === 'all') prependJobCard(d.card);
+    updateTabCounts();
+  });
+
+  es.addEventListener('job:proposal-sent', e => {
+    const d = JSON.parse(e.data);
+    const job = jobCards.find(j => j.jobUid === d.jobUid);
+    if (job) { job.proposalSent = d.proposalSent; job.proposalSentAt = d.proposalSentAt; }
+    updateTabCounts();
+  });
+
+  es.addEventListener('job:email', e => {
+    const d = JSON.parse(e.data);
+    appendLog({ type:'success', message:`✉ Email sent: "${d.title}"`, time: new Date().toISOString() });
+  });
+
+  es.onerror = () => {
+    appendLog({ type:'warn', message:'Connection lost — reconnecting…', time: new Date().toISOString() });
+    es.close();
+    setTimeout(connect, 3000);
+  };
+}
+
+// ── Initial state load ─────────────────────────────────────────────────────
+async function loadState() {
+  try {
+    const r = await fetch('/api/state');
+    const d = await r.json();
+    Object.assign(state.stats, d.stats);
+    state.isRunning = d.isRunning;
+    if (d.emailTo) document.getElementById('stat-emailto').textContent = d.emailTo;
+    if (d.lastRun) updateLastRun(d.lastRun);
+    setStatus(d.isRunning);
+    renderStats();
+
+    // Pre-fill settings form from initial state (no extra fetch needed)
+    if (d.settings) populateSettingsForm(d.settings);
+
+    // Load jobs from DB (persistent across restarts)
+    await loadJobsFromDB(false);
+
+    // Render recent log
+    (d.log || []).slice(0, 50).reverse().forEach(e => appendLog(e, false));
+
+    if (d.isRunning) showProcessing('Working…');
+  } catch(e) {
+    appendLog({ type:'error', message:'Failed to load state', time: new Date().toISOString() });
+  }
+}
+
+// ── Render helpers ─────────────────────────────────────────────────────────
+function renderStats() {
+  const s = state.stats;
+  setNum('stat-cycles',   s.cycles);
+  setNum('stat-jobs',     s.totalJobs);
+  setNum('stat-relevant', s.relevant);
+  setNum('stat-emails',   s.emailsSent);
+  setNum('hdr-jobs',      s.totalJobs);
+  setNum('hdr-relevant',  s.relevant);
+  setNum('hdr-emails',    s.emailsSent);
+  document.getElementById('jobs-count').textContent = `${s.relevant} found`;
+}
+
+function setNum(id, val) {
+  const el = document.getElementById(id);
+  if (el && el.textContent !== String(val)) el.textContent = val;
+}
+
+function setStatus(running) {
+  const dot  = document.getElementById('status-dot');
+  const text = document.getElementById('status-text');
+  const icon = document.getElementById('run-icon');
+  const lbl  = document.getElementById('run-label');
+  const btn  = document.getElementById('run-btn');
+  const sub  = document.getElementById('hdr-sub');
+
+  const stopBtn = document.getElementById('stop-btn');
+  if (running) {
+    dot.className    = 'w-2 h-2 rounded-full bg-amber-400 relative pulse-ring';
+    text.textContent = 'Running';
+    text.className   = 'text-amber-400';
+    icon.className   = 'w-3.5 h-3.5 spin';
+    lbl.textContent  = 'Running…';
+    btn.disabled     = true;
+    btn.style.opacity = '0.6';
+    sub.textContent  = 'Processing jobs…';
+    if (stopBtn) stopBtn.style.display = 'flex';
+  } else {
+    dot.className    = 'w-2 h-2 rounded-full bg-emerald-400';
+    text.textContent = 'Idle';
+    text.className   = 'text-emerald-400';
+    icon.className   = 'w-3.5 h-3.5';
+    lbl.textContent  = 'Run Now';
+    btn.disabled     = false;
+    btn.style.opacity = '1';
+    sub.textContent  = 'Job Bidding Bot';
+    if (stopBtn) stopBtn.style.display = 'none';
+  }
+}
+
+function updateLastRun(iso) {
+  const el = document.getElementById('stat-lastrun');
+  if (!el) return;
+  const d = new Date(iso);
+  const diff = Math.floor((Date.now() - d) / 1000);
+  if (diff < 60) el.textContent = 'Just now';
+  else if (diff < 3600) el.textContent = `${Math.floor(diff/60)}m ago`;
+  else el.textContent = d.toLocaleTimeString();
+}
+
+function showProcessing(title) {
+  document.getElementById('processing-bar').classList.remove('hidden');
+  document.getElementById('processing-bar').classList.add('flex');
+  document.getElementById('processing-title').textContent = title;
+}
+
+function hideProcessing() {
+  document.getElementById('processing-bar').classList.add('hidden');
+  document.getElementById('processing-bar').classList.remove('flex');
+}
+
+// ── Activity log ───────────────────────────────────────────────────────────
+const LOG_COLORS = {
+  info:    'text-slate-400',
+  success: 'text-emerald-400',
+  warn:    'text-amber-400',
+  error:   'text-red-400',
+};
+const LOG_PREFIX = { info:'›', success:'✓', warn:'⚠', error:'✗' };
+
+function appendLog(entry, animate = true) {
+  const log = document.getElementById('activity-log');
+  // Remove placeholder
+  const ph = log.querySelector('.text-slate-700');
+  if (ph && ph.textContent.includes('Connecting')) ph.remove();
+
+  const el = document.createElement('div');
+  const color = LOG_COLORS[entry.type] || 'text-slate-500';
+  const prefix = LOG_PREFIX[entry.type] || '›';
+  const time = new Date(entry.time).toLocaleTimeString('en', { hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  el.className = `flex gap-2 ${animate ? 'anim-in' : ''}`;
+  el.innerHTML = `<span class="text-slate-700 flex-shrink-0">${time}</span><span class="${color} flex-shrink-0">${prefix}</span><span class="${color} break-all">${escHtml(entry.message)}</span>`;
+
+  log.prepend(el);
+  // keep max 300 entries
+  while (log.children.length > 300) log.removeChild(log.lastChild);
+}
+
+function clearLog() {
+  document.getElementById('activity-log').innerHTML = '';
+}
+
+// ── Job cards ──────────────────────────────────────────────────────────────
+function scoreColor(s) {
+  if (s >= 80) return { bg:'bg-emerald-500', text:'text-emerald-400', bar:'bg-emerald-500', ring:'border-emerald-900/40', card:'rgba(6,78,59,.12)' };
+  if (s >= 60) return { bg:'bg-amber-500',   text:'text-amber-400',   bar:'bg-amber-500',   ring:'border-amber-900/40',   card:'rgba(120,53,15,.12)' };
+  return           { bg:'bg-red-500',     text:'text-red-400',     bar:'bg-red-500',     ring:'border-red-900/40',     card:'rgba(127,29,29,.12)' };
+}
+
+function buildCard(job) {
+  const c = scoreColor(job.score);
+  const skills = (job.skills || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 6);
+  const id = `card-${job.jobUid}`;
+
+  return `
+  <div id="${id}" class="anim-in rounded-2xl border ${c.ring} overflow-hidden" style="background:${c.card}">
+    <!-- Card header -->
+    <div class="p-5 pb-4">
+      <div class="flex items-start justify-between gap-3 mb-3">
+        <a href="${escHtml(job.link)}" target="_blank" rel="noopener"
+           class="font-semibold text-white text-sm hover:text-emerald-300 transition-colors leading-snug flex-1 min-w-0">
+          ${escHtml(job.title)}
+        </a>
+        <!-- Score badge -->
+        <div class="flex-shrink-0 flex flex-col items-end gap-1">
+          <div class="px-2.5 py-1 rounded-lg ${c.bg} text-white text-xs font-bold tabular-nums">${job.score}</div>
+          <div class="text-slate-600 text-xs">/100</div>
+        </div>
+      </div>
+
+      <!-- Score bar -->
+      <div class="h-1 bg-slate-800 rounded-full overflow-hidden mb-4">
+        <div class="h-full ${c.bar} score-bar rounded-full" style="width:${job.score}%"></div>
+      </div>
+
+      <!-- Meta badges -->
+      <div class="flex flex-wrap gap-2 mb-3">
+        ${job.paymentVerified ? `<span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-900/30 text-emerald-400 text-xs font-medium border border-emerald-900/40">
+          <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+          Verified</span>` : `<span class="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-500 text-xs border border-slate-700/30">Unverified</span>`}
+        ${job.totalSpent && job.totalSpent !== 'Unknown' ? `<span class="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-300 text-xs border border-slate-700/30">💰 $${escHtml(job.totalSpent)} spent</span>` : ''}
+        ${job.clientRating ? `<span class="px-2 py-1 rounded-lg bg-slate-800/60 text-amber-400 text-xs border border-slate-700/30">★ ${escHtml(job.clientRating)}</span>` : ''}
+        ${job.clientLocation ? `<span class="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-400 text-xs border border-slate-700/30">📍 ${escHtml(job.clientLocation)}</span>` : ''}
+        ${job.proposals ? `<span class="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-400 text-xs border border-slate-700/30">👥 ${escHtml(job.proposals)} proposals</span>` : ''}
+      </div>
+
+      <!-- Skills -->
+      ${skills.length ? `<div class="flex flex-wrap gap-1.5 mb-3">${skills.map(s => `<span class="px-2 py-0.5 rounded-md bg-indigo-900/30 text-indigo-300 text-xs border border-indigo-900/30">${escHtml(s)}</span>`).join('')}</div>` : ''}
+
+      <!-- Job type / experience -->
+      <div class="flex gap-3 text-xs text-slate-500">
+        ${job.jobType ? `<span>${escHtml(job.jobType)}</span>` : ''}
+        ${job.experienceLevel ? `<span>·</span><span>${escHtml(job.experienceLevel)}</span>` : ''}
+        ${job.postedAt ? `<span>·</span><span class="text-slate-600">${escHtml(job.postedAt)}</span>` : ''}
+      </div>
+    </div>
+
+    <!-- Client trust -->
+    ${job.clientTrust ? `
+    <div class="px-5 pb-3">
+      <div class="text-xs text-slate-500 bg-slate-900/50 rounded-lg px-3 py-2 border border-slate-800/50">
+        <span class="text-slate-600 font-medium">Trust: </span>${escHtml(job.clientTrust)}
+      </div>
+    </div>` : ''}
+
+    <!-- Actions -->
+    <div class="px-5 pb-4 flex flex-wrap items-center gap-2">
+      <a href="${escHtml(job.link)}" target="_blank" rel="noopener"
+         class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-xs font-medium transition-colors border border-slate-700/40">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        View Job
+      </a>
+      ${job.milestones && job.milestones.length ? `
+      <button onclick="toggleSection('milestones-wrap-${job.jobUid}', 'ms-lbl-${job.jobUid}', 'Milestones', 'Hide Milestones')"
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border border-amber-900/40 bg-amber-900/20 hover:bg-amber-900/40 text-amber-300">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+        <span id="ms-lbl-${job.jobUid}">Milestones (${job.milestones.length})</span>
+      </button>` : ''}
+      ${job.proposalDraft ? `
+      <button onclick="toggleSection('proposal-${job.jobUid}', 'proposal-lbl-${job.jobUid}', 'Show Proposal', 'Hide Proposal')"
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border border-indigo-900/40 bg-indigo-900/20 hover:bg-indigo-900/40 text-indigo-300">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <span id="proposal-lbl-${job.jobUid}">Show Proposal</span>
+      </button>` : ''}
+      <!-- Mark Proposal Sent -->
+      ${job.proposalSent ? `
+      <div id="sent-btn-${job.jobUid}" class="ml-auto flex items-center gap-2">
+        ${job.evidencePath ? `<a href="${escHtml(job.evidencePath)}" target="_blank" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/60 text-slate-400 text-xs border border-slate-700/40 hover:text-white transition-colors">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>Evidence</a>` : ''}
+        <button onclick="openSentModal('${job.jobUid}', \`${escJs(job.title)}\`)"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-emerald-700/60 bg-emerald-900/30 text-emerald-400 hover:bg-emerald-900/50 transition-colors">
+          <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+          Sent · ${job.proposalSentAt ? new Date(job.proposalSentAt).toLocaleDateString() : ''}
+        </button>
+      </div>` : `
+      <button id="sent-btn-${job.jobUid}" onclick="openSentModal('${job.jobUid}', \`${escJs(job.title)}\`)"
+        class="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border border-slate-700/40 bg-slate-800/60 text-slate-400 hover:border-emerald-700/40 hover:text-emerald-400">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Mark Proposal Sent
+      </button>`}
+    </div>
+
+    <!-- Milestones (expandable) -->
+    ${job.milestones && job.milestones.length ? `
+    <div id="milestones-wrap-${job.jobUid}" class="proposal-content">
+      <div class="px-5 pb-5 border-t border-slate-800/50 pt-4">
+        <div class="text-xs font-semibold text-amber-400/80 uppercase tracking-widest mb-3">Project Milestones</div>
+        <div class="space-y-2">
+          ${job.milestones.map((m, i) => `
+          <div class="flex gap-3 rounded-xl border border-slate-800/50 p-3" style="background:rgba(15,23,42,.5)">
+            <div class="w-6 h-6 rounded-full bg-amber-900/40 border border-amber-900/60 flex items-center justify-center text-amber-400 text-xs font-bold flex-shrink-0 mt-0.5">${i + 1}</div>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-sm font-medium text-white">${escHtml(m.title)}</span>
+                <span class="px-2 py-0.5 rounded-md bg-amber-900/30 text-amber-400 text-xs border border-amber-900/30">${escHtml(m.duration)}</span>
+              </div>
+              <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">${escHtml(m.description)}</p>
+            </div>
+          </div>`).join('')}
+        </div>
+      </div>
+    </div>` : ''}
+
+    <!-- Proposal (expandable) -->
+    ${job.proposalDraft ? `
+    <div id="proposal-${job.jobUid}" class="proposal-content">
+      <div class="px-5 pb-5 border-t border-slate-800/50 pt-4">
+        <div class="text-xs font-semibold text-indigo-400 uppercase tracking-widest mb-3">Proposal Draft</div>
+        <div class="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap bg-slate-900/50 rounded-xl p-4 border border-slate-800/50 max-h-72 overflow-y-auto">${escHtml(job.proposalDraft)}</div>
+        <button onclick="copyProposal('${job.jobUid}', \`${escJs(job.proposalDraft)}\`)"
+          class="mt-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/80 hover:bg-slate-700 text-slate-400 transition-colors">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+          <span id="copy-lbl-${job.jobUid}">Copy to Clipboard</span>
+        </button>
+      </div>
+    </div>` : ''}
+  </div>`;
+}
+
+function prependJobCard(job) {
+  jobCards.unshift(job);
+  const empty = document.getElementById('jobs-empty');
+  if (empty) empty.remove();
+
+  const list = document.getElementById('jobs-list');
+  const tmp  = document.createElement('div');
+  tmp.innerHTML = buildCard(job);
+  list.prepend(tmp.firstElementChild);
+}
+
+function renderAllCards() {
+  const list  = document.getElementById('jobs-list');
+  const empty = document.getElementById('jobs-empty');
+  if (!jobCards.length) {
+    if (!empty) {
+      list.innerHTML = `<div id="jobs-empty" class="rounded-2xl border border-slate-800/40 p-12 text-center" style="background:rgba(15,23,42,.4)">
+        <div class="w-14 h-14 rounded-2xl bg-slate-800/60 flex items-center justify-center mx-auto mb-4">
+          <svg class="w-7 h-7 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        </div>
+        <p class="text-slate-500 text-sm">${currentView === 'sent' ? 'No sent proposals yet' : 'No relevant jobs yet'}</p>
+      </div>`;
+    }
+    return;
+  }
+  if (empty) empty.remove();
+  list.innerHTML = '';
+  jobCards.forEach(job => {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = buildCard(job);
+    list.appendChild(tmp.firstElementChild);
+  });
+  updateTabCounts();
+}
+
+// ── Interactions ───────────────────────────────────────────────────────────
+function toggleSection(elId, lblId, closedText, openText) {
+  const el  = document.getElementById(elId);
+  const lbl = document.getElementById(lblId);
+  if (!el) return;
+  const open = el.classList.toggle('open');
+  if (lbl) lbl.textContent = open ? openText : closedText;
+}
+
+function copyProposal(uid, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    const lbl = document.getElementById(`copy-lbl-${uid}`);
+    if (lbl) { lbl.textContent = 'Copied!'; setTimeout(() => lbl.textContent = 'Copy to Clipboard', 2000); }
+  });
+}
+
+async function triggerRun() {
+  if (state.isRunning) return;
+  try {
+    const r = await fetch('/api/run', { method:'POST' });
+    const d = await r.json();
+    if (!d.ok) appendLog({ type:'warn', message: d.message, time: new Date().toISOString() });
+  } catch(e) {
+    appendLog({ type:'error', message:'Failed to trigger run', time: new Date().toISOString() });
+  }
+}
+
+async function triggerStop() {
+  try {
+    await fetch('/api/stop', { method:'POST' });
+  } catch(e) {
+    appendLog({ type:'error', message:'Failed to stop', time: new Date().toISOString() });
+  }
+}
+
+// ── View switching (All / Sent) ────────────────────────────────────────────
+let currentView = 'all';
+
+async function switchView(view) {
+  currentView = view;
+  const allBtn  = document.getElementById('tab-all-btn');
+  const sentBtn = document.getElementById('tab-sent-btn');
+  if (view === 'all') {
+    allBtn.className  = 'px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-white bg-slate-700';
+    sentBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-500 hover:text-slate-300';
+  } else {
+    sentBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-white bg-slate-700';
+    allBtn.className  = 'px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-slate-500 hover:text-slate-300';
+  }
+  await loadJobsFromDB(view === 'sent');
+}
+
+async function loadJobsFromDB(onlySent = false) {
+  try {
+    const r    = await fetch(`/api/jobs${onlySent ? '?sent=true' : ''}`);
+    const jobs = await r.json();
+    jobCards   = jobs;
+    renderAllCards();
+    document.getElementById('jobs-count').textContent = `${jobs.length} found`;
+  } catch(e) { console.error('loadJobsFromDB', e); }
+}
+
+// ── Proposal sent toggle ───────────────────────────────────────────────────
+async function toggleProposalSent(jobUid) {
+  const btn = document.getElementById(`sent-btn-${jobUid}`);
+  const lbl = document.getElementById(`sent-lbl-${jobUid}`);
+  const job = jobCards.find(j => j.jobUid === jobUid);
+  const nowSent = job ? !job.proposalSent : true;
+
+  try {
+    const r = await fetch(`/api/jobs/${jobUid}/proposal-sent`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ sent: nowSent }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      if (job) job.proposalSent = d.job.proposalSent;
+      if (lbl) lbl.textContent = d.job.proposalSent
+        ? `Sent · ${new Date(d.job.proposalSentAt).toLocaleDateString()}`
+        : 'Mark Proposal Sent';
+      if (btn) {
+        btn.className = btn.className.replace(
+          d.job.proposalSent ? /border-slate-700\/40[^"]*/ : /border-emerald-700\/60[^"]*/,
+          d.job.proposalSent
+            ? 'border-emerald-700/60 bg-emerald-900/30 text-emerald-400 cursor-default'
+            : 'border-slate-700/40 bg-slate-800/60 text-slate-400 hover:border-emerald-700/40 hover:text-emerald-400'
+        );
+      }
+      // Update sent count badge
+      const sentCount = jobCards.filter(j => j.proposalSent).length;
+      document.getElementById('tab-sent-count').textContent = sentCount || '';
+    }
+  } catch(e) {
+    appendLog({ type:'error', message:'Failed to update proposal status', time: new Date().toISOString() });
+  }
+}
+
+function updateTabCounts() {
+  const sentCount = jobCards.filter(j => j.proposalSent).length;
+  document.getElementById('tab-all-count').textContent  = jobCards.length || '';
+  document.getElementById('tab-sent-count').textContent = sentCount || '';
+}
+
+// ── Utils ──────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escJs(s) {
+  return String(s || '').replace(/\\/g,'\\\\').replace(/`/g,'\\`').replace(/\$/g,'\\$');
+}
+
+// Update "last run" time every 30s
+setInterval(() => {
+  const el = document.getElementById('stat-lastrun');
+  if (el && el.dataset.iso) updateLastRun(el.dataset.iso);
+}, 30000);
+
+// ── Proposal Sent Modal ────────────────────────────────────────────────────
+let sentModalJobUid = null;
+let selectedFile    = null;
+
+function openSentModal(jobUid, title) {
+  sentModalJobUid = jobUid;
+  selectedFile    = null;
+  document.getElementById('sent-modal-title').textContent = title;
+  document.getElementById('sent-notes').value = '';
+  clearFile();
+  const overlay = document.getElementById('sent-overlay');
+  overlay.style.cssText = 'display:flex!important';
+}
+
+function closeSentModal() {
+  document.getElementById('sent-overlay').style.cssText = 'display:none!important';
+  sentModalJobUid = null;
+  selectedFile    = null;
+}
+
+function handleFileSelect(file) {
+  if (!file) return;
+  selectedFile = file;
+  showFilePreview(file);
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('border-indigo-500');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFileSelect(file);
+}
+
+function showFilePreview(file) {
+  const ph   = document.getElementById('drop-placeholder');
+  const prev = document.getElementById('drop-preview');
+  const img  = document.getElementById('preview-img');
+  const name = document.getElementById('preview-name').querySelector('span');
+  ph.classList.add('hidden');
+  prev.classList.remove('hidden');
+  name.textContent = file.name;
+  if (file.type.startsWith('image/')) {
+    img.src = URL.createObjectURL(file);
+    img.classList.remove('hidden');
+  } else {
+    img.classList.add('hidden');
+  }
+}
+
+function clearFile() {
+  selectedFile = null;
+  document.getElementById('evidence-input').value = '';
+  document.getElementById('drop-placeholder').classList.remove('hidden');
+  document.getElementById('drop-preview').classList.add('hidden');
+  document.getElementById('preview-img').src = '';
+}
+
+async function confirmProposalSent() {
+  if (!sentModalJobUid) return;
+  const btn = document.getElementById('sent-confirm-btn');
+  btn.textContent = 'Saving…';
+  btn.disabled    = true;
+
+  try {
+    const form = new FormData();
+    form.append('sent', 'true');
+    const notes = document.getElementById('sent-notes').value.trim();
+    if (notes)        form.append('notes', notes);
+    if (selectedFile) form.append('evidence', selectedFile);
+
+    const r = await fetch(`/api/jobs/${sentModalJobUid}/proposal-sent`, { method:'POST', body: form });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+
+    // Update local card state
+    const job = jobCards.find(j => j.jobUid === sentModalJobUid);
+    if (job) { job.proposalSent = true; job.proposalSentAt = d.job.proposalSentAt; job.evidencePath = d.job.evidencePath; job.notes = d.job.notes; }
+
+    // Re-render the card
+    const el = document.getElementById(`card-${sentModalJobUid}`);
+    if (el) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = buildCard(job || d.job);
+      el.replaceWith(tmp.firstElementChild);
+    }
+
+    updateTabCounts();
+    closeSentModal();
+    appendLog({ type:'success', message:`Proposal marked as sent: "${d.job.title}"`, time: new Date().toISOString() });
+  } catch(e) {
+    appendLog({ type:'error', message:`Failed: ${e.message}`, time: new Date().toISOString() });
+  } finally {
+    btn.textContent = 'Confirm';
+    btn.disabled    = false;
+  }
+}
+
+// ── Settings ───────────────────────────────────────────────────────────────
+let currentTab = 'search';
+
+function openSettings() {
+  document.getElementById('settings-drawer').classList.add('open');
+  document.getElementById('settings-overlay').classList.add('open');
+}
+function closeSettings() {
+  document.getElementById('settings-drawer').classList.remove('open');
+  document.getElementById('settings-overlay').classList.remove('open');
+}
+
+function switchTab(name, btn) {
+  ['search','schedule','ai','email'].forEach(t => {
+    document.getElementById(`tab-${t}`).classList.add('hidden');
+  });
+  document.querySelectorAll('.settings-tab').forEach(b => b.classList.remove('active'));
+  document.getElementById(`tab-${name}`).classList.remove('hidden');
+  btn.classList.add('active');
+  currentTab = name;
+}
+
+function onSchedulePreset(val) {
+  const cf = document.getElementById('custom-cron-field');
+  if (val === 'custom') {
+    cf.classList.remove('hidden');
+  } else {
+    cf.classList.add('hidden');
+    document.getElementById('s-cronSchedule').value = val;
+    document.getElementById('schedule-display').textContent = val;
+  }
+}
+
+function populateSettingsForm(s) {
+  document.getElementById('s-jobsUrl').value              = s.jobsUrl || '';
+  document.getElementById('s-aiRelevanceKeywords').value  = s.aiRelevanceKeywords || '';
+  document.getElementById('s-aiExcludeKeywords').value    = s.aiExcludeKeywords || '';
+  document.getElementById('s-freelancerName').value      = s.freelancerName || '';
+  document.getElementById('s-freelancerPortfolio').value = s.freelancerPortfolio || '';
+  document.getElementById('s-aiModel').value             = s.aiModel || 'gpt-4o-mini';
+  document.getElementById('s-aiSystemPrompt').value       = s.aiSystemPrompt || '';
+  document.getElementById('s-emailTo').value              = s.emailTo || '';
+  document.querySelectorAll('input[name="emailMode"]').forEach(r => { r.checked = r.value === (s.emailMode || 'both'); });
+  document.getElementById('s-minScore').value             = s.minScore ?? 0;
+  document.getElementById('minScoreVal').textContent      = s.minScore ?? 0;
+  document.getElementById('s-maxPages').value             = s.maxPages ?? 3;
+  document.getElementById('maxPagesVal').textContent      = s.maxPages ?? 3;
+  document.getElementById('s-cronSchedule').value         = s.cronSchedule || '*/5 * * * *';
+  document.getElementById('schedule-display').textContent = s.cronSchedule || '*/5 * * * *';
+
+  const preset     = document.getElementById('s-schedulePreset');
+  const knownVals  = [...preset.options].map(o => o.value).filter(v => v !== 'custom');
+  if (knownVals.includes(s.cronSchedule)) {
+    preset.value = s.cronSchedule;
+    document.getElementById('custom-cron-field').classList.add('hidden');
+  } else {
+    preset.value = 'custom';
+    document.getElementById('custom-cron-field').classList.remove('hidden');
+  }
+}
+
+async function loadSettingsIntoForm() {
+  try {
+    const r = await fetch('/api/settings');
+    populateSettingsForm(await r.json());
+  } catch(e) { console.error('Failed to load settings', e); }
+}
+
+async function saveSettings() {
+  const preset = document.getElementById('s-schedulePreset').value;
+  const cronSchedule = preset === 'custom'
+    ? document.getElementById('s-cronSchedule').value.trim()
+    : preset;
+
+  const payload = {
+    jobsUrl:              document.getElementById('s-jobsUrl').value.trim(),
+    aiRelevanceKeywords:  document.getElementById('s-aiRelevanceKeywords').value.trim(),
+    aiExcludeKeywords:    document.getElementById('s-aiExcludeKeywords').value.trim(),
+    aiModel:              document.getElementById('s-aiModel').value,
+    aiSystemPrompt:       document.getElementById('s-aiSystemPrompt').value.trim(),
+    freelancerName:       document.getElementById('s-freelancerName').value.trim(),
+    freelancerPortfolio:  document.getElementById('s-freelancerPortfolio').value.trim(),
+    emailTo:              document.getElementById('s-emailTo').value.trim(),
+    emailMode:            document.querySelector('input[name="emailMode"]:checked')?.value || 'both',
+    minScore:             Number(document.getElementById('s-minScore').value),
+    maxPages:             Number(document.getElementById('s-maxPages').value),
+    cronSchedule,
+  };
+
+  const btn    = document.getElementById('save-btn');
+  const status = document.getElementById('save-status');
+  btn.textContent = 'Saving…';
+  btn.disabled = true;
+
+  try {
+    const r = await fetch('/api/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const d = await r.json();
+    if (d.ok) {
+      btn.textContent = '✓ Saved';
+      status.textContent = 'Settings saved';
+      status.classList.remove('hidden','text-red-400');
+      status.classList.add('text-emerald-400');
+      document.getElementById('schedule-display').textContent = cronSchedule;
+      setTimeout(() => { btn.textContent = 'Save Changes'; btn.disabled = false; status.classList.add('hidden'); }, 2000);
+    } else {
+      throw new Error(d.error);
+    }
+  } catch(e) {
+    btn.textContent = 'Save Changes';
+    btn.disabled = false;
+    status.textContent = `Error: ${e.message}`;
+    status.classList.remove('hidden','text-emerald-400');
+    status.classList.add('text-red-400');
+  }
+}
+
+// Keyboard shortcut: Escape closes settings
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSettings(); });
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+loadState().then(connect);
+</script>
+</body>
+</html>

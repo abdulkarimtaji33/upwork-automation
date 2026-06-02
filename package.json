@@ -1,0 +1,19 @@
+{
+  "name": "n8n",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "upwork:fetch": "node upwork-bridge/server.js",
+    "upwork:test": "node upwork-bridge/test.js",
+    "test": "node upwork-bridge/test.js",
+    "deploy:vps": "ssh root@72.60.223.25 \"cd /var/www/upwork-automation && git pull origin main && bash scripts/deploy-production.sh\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "n8n": "^2.21.7"
+  }
+}

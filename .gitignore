@@ -1,0 +1,16 @@
+node_modules/
+chrome-profile/
+data/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+automation/settings.json
+automation/.env
+upwork-bridge/list.html
+upwork-bridge/detail.html
+.DS_Store
+*.log
+# root package-lock optional
+/package-lock.json

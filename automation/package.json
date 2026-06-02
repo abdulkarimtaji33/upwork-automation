@@ -1,0 +1,21 @@
+{
+  "name": "upwork-automation",
+  "version": "1.0.0",
+  "description": "Upwork job bidding automation — standalone Node.js, no n8n",
+  "main": "index.js",
+  "scripts": {
+    "start": "node dashboard.js",
+    "headless": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.22.2",
+    "multer": "^2.1.1",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.16",
+    "openai": "^4.98.0"
+  }
+}
