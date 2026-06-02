@@ -81,6 +81,9 @@ function launchChrome() {
       '--disable-dev-shm-usage',
       '--no-sandbox',
       '--disable-gpu',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-features=IsolateOrigins,site-per-process',
+      '--window-size=1920,1080',
       ...(process.platform !== 'win32' ? ['--headless=new'] : []),
       JOBS_URL,
     ],
@@ -110,6 +113,20 @@ async function ensureChrome() {
   }
 }
 
+async function applyStealthToPage(page) {
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+    window.chrome = { runtime: {} };
+    const orig = navigator.permissions.query.bind(navigator.permissions);
+    navigator.permissions.query = (p) =>
+      p.name === 'notifications'
+        ? Promise.resolve({ state: Notification.permission })
+        : orig(p);
+  });
+}
+
 async function getBrowser() {
   await ensureChrome();
   if (browser && browser.isConnected()) return browser;
@@ -117,9 +134,17 @@ async function getBrowser() {
     browserURL: CDP_BASE,
     defaultViewport: null,
   });
-  browser.on('disconnected', () => {
-    browser = null;
+  browser.on('disconnected', () => { browser = null; });
+  browser.on('targetcreated', async (target) => {
+    try {
+      const page = await target.page();
+      if (page) await applyStealthToPage(page);
+    } catch { /* ignore */ }
   });
+  // Apply stealth to already-open pages
+  try {
+    for (const page of await browser.pages()) await applyStealthToPage(page);
+  } catch { /* ignore */ }
   return browser;
 }
 
