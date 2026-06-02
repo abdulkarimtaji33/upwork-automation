@@ -1,15 +1,15 @@
 const path = require('path');
 
-const ROOT = path.join('C:', 'n8n');
+const ROOT = process.env.UPWORK_ROOT || path.resolve(__dirname, '..');
 const DATA_DIR = process.env.N8N_USER_FOLDER
-  ? path.join(process.env.N8N_USER_FOLDER)
+  ? path.resolve(process.env.N8N_USER_FOLDER)
   : path.join(ROOT, 'data');
 
 module.exports = {
   PORT: Number(process.env.UPWORK_FETCH_PORT || 9877),
   CDP_PORT: Number(process.env.UPWORK_CDP_PORT || 9222),
   CDP_BASE: `http://127.0.0.1:${process.env.UPWORK_CDP_PORT || 9222}`,
-  PROFILE: process.env.UPWORK_CHROME_PROFILE || path.join(ROOT, 'chrome-profile'),
+  PROFILE: process.env.UPWORK_CHROME_PROFILE || path.resolve(ROOT, 'chrome-profile'),
   COOKIE_JSON: path.join(DATA_DIR, 'upwork_cookies.json'),
   COOKIE_TXT: path.join(DATA_DIR, 'upwork_cookies.txt'),
   JOBS_URL:
