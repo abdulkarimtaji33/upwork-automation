@@ -74,12 +74,12 @@ async function main() {
   console.log('  POST /refresh');
   console.log('  GET  /health');
 
-  await chrome.ensureChrome();
-  chrome.startWatchdog();
-
   const server = app.listen(PORT, '127.0.0.1', () => {
     console.log(`[server] Listening on 127.0.0.1:${PORT}`);
   });
+
+  chrome.startWatchdog();
+  chrome.ensureChrome().catch((err) => console.error('[startup]', err.message));
 
   server.requestTimeout = 0;
   server.headersTimeout = 0;
