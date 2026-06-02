@@ -107,6 +107,7 @@ function launchChrome() {
       '--disable-blink-features=AutomationControlled',
       '--disable-features=IsolateOrigins,site-per-process',
       '--window-size=1920,1080',
+      '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.7778.215 Safari/537.36',
       JOBS_URL,
     ],
     { detached: false, stdio: 'ignore', env },
@@ -136,16 +137,35 @@ async function ensureChrome() {
 }
 
 async function applyStealthToPage(page) {
+  // Patch runs in ALL frames including cross-origin iframes via CDP worldName
   await page.evaluateOnNewDocument(() => {
+    // Hide webdriver
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+    // Realistic plugins
+    Object.defineProperty(navigator, 'plugins', {
+      get: () => {
+        const ps = [{ name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+                    { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: '' },
+                    { name: 'Native Client', filename: 'internal-nacl-plugin', description: '' }];
+        ps.__proto__ = PluginArray.prototype;
+        return ps;
+      }
+    });
     Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-    window.chrome = { runtime: {} };
-    const orig = navigator.permissions.query.bind(navigator.permissions);
-    navigator.permissions.query = (p) =>
-      p.name === 'notifications'
-        ? Promise.resolve({ state: Notification.permission })
-        : orig(p);
+    // Realistic chrome object
+    if (!window.chrome || !window.chrome.app) {
+      window.chrome = { app: { isInstalled: false }, webstore: {}, runtime: { onConnect: { addListener: () => {} }, onMessage: { addListener: () => {} } } };
+    }
+    // Permissions
+    try {
+      const origQuery = window.navigator.permissions.query.bind(navigator.permissions);
+      window.navigator.permissions.__proto__.query = (p) =>
+        p.name === 'notifications' ? Promise.resolve({ state: Notification.permission }) : origQuery(p);
+    } catch {}
+    // Hide CDP artifacts
+    delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
+    delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
+    delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
   });
 }
 
