@@ -67,6 +67,27 @@ app.post('/refresh', async (_req, res) => {
   }
 });
 
+app.get('/screenshot', async (_req, res) => {
+  try {
+    const buf = await chrome.screenshot();
+    res.type('png').send(buf);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/click', async (req, res) => {
+  const { x, y } = req.body;
+  if (typeof x !== 'number' || typeof y !== 'number')
+    return res.status(400).json({ error: 'x and y required' });
+  try {
+    await chrome.clickAt(x, y);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 async function main() {
   console.log(`Upwork bridge (Node.js) http://127.0.0.1:${PORT}`);
   console.log('  GET  /fetch/jobs');

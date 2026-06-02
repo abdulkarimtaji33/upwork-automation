@@ -136,6 +136,11 @@
         <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clip-rule="evenodd"/></svg>
         Stop
       </button>
+      <button id="cf-btn" onclick="openCfSolver()" title="Solve Cloudflare Challenge"
+        class="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-amber-400 border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 transition-all duration-200 active:scale-95" style="display:none">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z"/></svg>
+        Solve CF
+      </button>
       <button id="run-btn" onclick="triggerRun()"
         class="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white transition-all duration-200 active:scale-95"
         style="background:linear-gradient(135deg,#14b8a6,#6366f1)">
@@ -306,6 +311,37 @@
       <button id="sent-confirm-btn" onclick="confirmProposalSent()"
         class="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
         style="background:linear-gradient(135deg,#14b8a6,#6366f1)">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── CF Solver Modal ───────────────────────────────────────────── -->
+<div id="cf-overlay" class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" style="display:none!important">
+  <div class="relative bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col" style="max-height:90vh">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-700/60">
+      <div>
+        <div class="font-semibold text-white text-sm">Cloudflare Solver</div>
+        <div class="text-xs text-slate-400 mt-0.5">Click the checkbox or interact with Chrome to solve the challenge</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span id="cf-status-badge" class="text-xs px-2 py-1 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30">Checking…</span>
+        <button onclick="closeCfSolver()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-all">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="p-4 overflow-auto flex-1">
+      <div class="relative inline-block border border-slate-700 rounded-xl overflow-hidden" style="cursor:crosshair;max-width:100%">
+        <img id="cf-screenshot" src="" alt="Chrome screenshot" style="display:block;max-width:100%;height:auto" />
+        <div id="cf-click-overlay" class="absolute inset-0" onclick="handleCfClick(event)"></div>
+        <div id="cf-loading" class="absolute inset-0 flex items-center justify-center bg-slate-900/80 text-slate-400 text-sm">
+          <div class="flex items-center gap-2"><div class="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full spin"></div>Loading…</div>
+        </div>
+      </div>
+    </div>
+    <div class="px-5 py-3 border-t border-slate-700/60 flex items-center justify-between">
+      <div class="text-xs text-slate-500">Click anywhere on the screenshot to send a click to Chrome</div>
+      <button onclick="refreshCfScreenshot()" class="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition-all">Refresh</button>
     </div>
   </div>
 </div>
@@ -891,6 +927,82 @@ function copyProposal(uid, text) {
     if (lbl) { lbl.textContent = 'Copied!'; setTimeout(() => lbl.textContent = 'Copy to Clipboard', 2000); }
   });
 }
+
+// ── CF Solver ──────────────────────────────────────────────────────────────
+let cfPollTimer = null;
+let cfAutoRefresh = null;
+
+function openCfSolver() {
+  const modal = document.getElementById('cf-overlay');
+  modal.style.removeProperty('display');
+  refreshCfScreenshot();
+  cfAutoRefresh = setInterval(refreshCfScreenshot, 3000);
+}
+
+function closeCfSolver() {
+  document.getElementById('cf-overlay').style.display = 'none';
+  if (cfAutoRefresh) { clearInterval(cfAutoRefresh); cfAutoRefresh = null; }
+}
+
+async function refreshCfScreenshot() {
+  const img = document.getElementById('cf-screenshot');
+  const loading = document.getElementById('cf-loading');
+  const badge = document.getElementById('cf-status-badge');
+  try {
+    // Append timestamp to bust cache
+    const ts = Date.now();
+    const resp = await fetch(`/api/cf/screenshot?t=${ts}`);
+    if (!resp.ok) throw new Error('screenshot failed');
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const old = img.src;
+    img.src = url;
+    img.onload = () => { if (old.startsWith('blob:')) URL.revokeObjectURL(old); loading.style.display = 'none'; };
+  } catch(e) {
+    badge.textContent = 'Bridge unavailable'; badge.className = 'text-xs px-2 py-1 rounded-full bg-red-500/15 text-red-400 border border-red-500/30';
+  }
+  // Poll health to update badge
+  try {
+    const h = await fetch('/api/cf/status').then(r => r.json());
+    const isBlocked = !h.ok;
+    if (!isBlocked) {
+      badge.textContent = 'Cleared ✓'; badge.className = 'text-xs px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
+    } else {
+      badge.textContent = 'CF Challenge Active'; badge.className = 'text-xs px-2 py-1 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30';
+    }
+  } catch {}
+}
+
+async function handleCfClick(e) {
+  const img = document.getElementById('cf-screenshot');
+  if (!img.naturalWidth) return;
+  const rect = img.getBoundingClientRect();
+  // Map click coordinates from display size to actual screenshot size
+  const scaleX = img.naturalWidth / rect.width;
+  const scaleY = img.naturalHeight / rect.height;
+  const x = Math.round((e.clientX - rect.left) * scaleX);
+  const y = Math.round((e.clientY - rect.top) * scaleY);
+  try {
+    await fetch('/api/cf/click', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({x,y}) });
+    setTimeout(refreshCfScreenshot, 800);
+  } catch(err) { console.error('click failed', err); }
+}
+
+// Poll for CF challenge status and show/hide button
+async function pollCfStatus() {
+  try {
+    const r = await fetch('/api/cf/screenshot?t=' + Date.now());
+    // If screenshot endpoint is alive, check if bridge is blocked
+    const health = await fetch('/api/cf/status').then(h => h.json()).catch(() => ({}));
+    // We can't easily know if CF is active without a screenshot diff
+    // Just keep the button visible if bridge is up
+    const cfBtn = document.getElementById('cf-btn');
+    if (cfBtn && health.cdp) cfBtn.style.display = 'flex';
+  } catch {}
+}
+
+setInterval(pollCfStatus, 15000);
+setTimeout(pollCfStatus, 3000);
 
 async function triggerRun() {
   if (state.isRunning) return;

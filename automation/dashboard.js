@@ -182,6 +182,37 @@ app.post('/api/settings', (req, res) => {
   }
 });
 
+// ─── CF Solver proxy (bridge screenshot/click) ───────────────────────────────
+const BRIDGE_BASE = process.env.BRIDGE_URL || 'http://127.0.0.1:9877';
+
+app.get('/api/cf/screenshot', async (_req, res) => {
+  try {
+    const r = await fetch(`${BRIDGE_BASE}/screenshot`);
+    if (!r.ok) return res.status(r.status).json({ error: 'Bridge error' });
+    const buf = Buffer.from(await r.arrayBuffer());
+    res.type('png').send(buf);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/cf/click', async (req, res) => {
+  const { x, y } = req.body;
+  try {
+    const r = await fetch(`${BRIDGE_BASE}/click`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ x, y }),
+    });
+    res.json(await r.json());
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/cf/status', async (_req, res) => {
+  try {
+    const r = await fetch(`${BRIDGE_BASE}/health`);
+    const health = await r.json();
+    res.json(health);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/events', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');

@@ -271,11 +271,27 @@ function startWatchdog() {
   setInterval(watchdog, require('./config').WATCHDOG_MS);
 }
 
+async function screenshot() {
+  const b = await getBrowser();
+  const page = await pickPage(b);
+  return page.screenshot({ type: 'png', encoding: 'binary', fullPage: false });
+}
+
+async function clickAt(x, y) {
+  const b = await getBrowser();
+  const page = await pickPage(b);
+  await page.mouse.move(x, y);
+  await new Promise(r => setTimeout(r, 80));
+  await page.mouse.click(x, y);
+}
+
 module.exports = {
   cdpAlive,
   ensureChrome,
   fetchUrl: (url) => withFetchLock(() => fetchUrl(url)),
   refreshClearance: () => withFetchLock(() => refreshClearance()),
+  screenshot,
+  clickAt,
   startWatchdog,
   pageLooksBlocked,
   htmlHasJobs,
