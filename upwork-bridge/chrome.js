@@ -210,13 +210,34 @@ async function waitForJobs(page) {
 async function fetchUrl(url) {
   const b = await getBrowser();
   const page = await pickPage(b);
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: FETCH_TIMEOUT_MS });
+
+  // If Chrome is already on a CF challenge for this domain, DON'T navigate —
+  // doing so interrupts the user's manual verification. Just wait for it to clear.
+  let html = await page.content().catch(() => '');
+  const alreadyOnDomain = (page.url() || '').includes('upwork.com');
+  const currentlyBlocked = pageLooksBlocked(html);
+
+  if (alreadyOnDomain && currentlyBlocked) {
+    console.log('[chrome] CF challenge active — waiting for user to solve (up to 5 min)…');
+    // Wait up to 5 minutes for the challenge to clear before navigating
+    const deadline = Date.now() + 5 * 60 * 1000;
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 3000));
+      html = await page.content().catch(() => '');
+      if (!pageLooksBlocked(html)) {
+        console.log('[chrome] CF challenge resolved — proceeding');
+        break;
+      }
+    }
+  } else {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: FETCH_TIMEOUT_MS });
+  }
 
   // Wait for at least one job to appear
-  let html = await page.content();
+  html = await page.content().catch(() => '');
   for (let i = 0; i < 25 && !htmlHasJobs(html); i++) {
     await waitForJobs(page);
-    html = await page.content();
+    html = await page.content().catch(() => '');
     if (htmlHasJobs(html)) break;
     await new Promise((r) => setTimeout(r, 1000));
   }
