@@ -114,10 +114,29 @@ emitter.on('job:email', (d) => broadcast('job:email', d));
 emitter.on('job:processing', (d) => broadcast('job:processing', d));
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
-app.get('/api/state', (_req, res) => {
-  res.json({ stats: store.stats, relevantJobs: store.relevantJobs, log: store.log.slice(0, 100),
-    lastRun: store.lastRun, isRunning: isRunning(), emailTo: EMAIL_TO, settings: loadSettings(),
-    dbStats: db.getStats() });
+app.get('/api/config', (_req, res) => {
+  res.json({
+    useRemoteDb: db.useRemote,
+    liveUrl: db.liveUrl,
+    proposalTrackingOnLive: db.useRemote,
+  });
+});
+
+app.get('/api/state', async (_req, res) => {
+  let dbStats = { total: 0, relevant: 0, emailSent: 0, proposalSent: 0 };
+  try { dbStats = await db.getStats(); } catch { /* ignore */ }
+  res.json({
+    stats: store.stats,
+    relevantJobs: store.relevantJobs,
+    log: store.log.slice(0, 100),
+    lastRun: store.lastRun,
+    isRunning: isRunning(),
+    emailTo: EMAIL_TO,
+    settings: loadSettings(),
+    dbStats,
+    useRemoteDb: db.useRemote,
+    liveUrl: db.liveUrl,
+  });
 });
 
 app.post('/api/run', async (_req, res) => {
@@ -133,36 +152,48 @@ app.post('/api/stop', (_req, res) => {
 });
 
 // ── DB endpoints ──────────────────────────────────────────────────────────────
-app.get('/api/jobs', (req, res) => {
-  const onlyProposalSent = req.query.sent === 'true';
-  res.json(db.getJobs({ onlyRelevant: true, onlyProposalSent }));
-});
-
-app.post('/api/jobs/:jobUid/proposal-sent', upload.single('evidence'), (req, res) => {
-  const sent         = req.body.sent !== 'false' && req.body.sent !== false;
-  const notes        = req.body.notes || null;
-  const evidencePath = req.file ? `/evidence/${req.file.filename}` : null;
-
-  // Delete old evidence file if unsending
-  if (!sent) {
-    const existing = db.getJob(req.params.jobUid);
-    if (existing?.evidencePath) {
-      const fullPath = path.join(EVIDENCE_DIR, path.basename(existing.evidencePath));
-      try { fs.unlinkSync(fullPath); } catch {}
-    }
+app.get('/api/jobs', async (req, res) => {
+  try {
+    const onlyProposalSent = req.query.sent === 'true';
+    const jobs = await db.getJobs({ onlyRelevant: true, onlyProposalSent });
+    res.json(jobs);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
   }
-
-  const job = db.markProposalSent(req.params.jobUid, { sent, notes, evidencePath });
-  if (!job) return res.status(404).json({ ok: false, error: 'Job not found' });
-  broadcast('job:proposal-sent', { jobUid: job.jobUid, proposalSent: job.proposalSent, proposalSentAt: job.proposalSentAt, evidencePath: job.evidencePath, notes: job.notes });
-  res.json({ ok: true, job });
 });
 
-app.post('/api/jobs/:jobUid/notes', (req, res) => {
-  const job = db.updateNotes(req.params.jobUid, req.body.notes || '');
-  if (!job) return res.status(404).json({ ok: false, error: 'Job not found' });
-  res.json({ ok: true, job });
-});
+if (!db.useRemote) {
+  app.post('/api/jobs/:jobUid/proposal-sent', upload.single('evidence'), async (req, res) => {
+    const sent = req.body.sent !== 'false' && req.body.sent !== false;
+    const notes = req.body.notes || null;
+    const evidencePath = req.file ? `/evidence/${req.file.filename}` : null;
+
+    if (!sent) {
+      const existing = await db.getJob(req.params.jobUid);
+      if (existing?.evidencePath) {
+        const fullPath = path.join(EVIDENCE_DIR, path.basename(existing.evidencePath));
+        try { fs.unlinkSync(fullPath); } catch { /* ignore */ }
+      }
+    }
+
+    const job = await db.markProposalSent(req.params.jobUid, { sent, notes, evidencePath });
+    if (!job) return res.status(404).json({ ok: false, error: 'Job not found' });
+    broadcast('job:proposal-sent', {
+      jobUid: job.jobUid,
+      proposalSent: job.proposalSent,
+      proposalSentAt: job.proposalSentAt,
+      evidencePath: job.evidencePath,
+      notes: job.notes,
+    });
+    res.json({ ok: true, job });
+  });
+
+  app.post('/api/jobs/:jobUid/notes', async (req, res) => {
+    const job = await db.updateNotes(req.params.jobUid, req.body.notes || '');
+    if (!job) return res.status(404).json({ ok: false, error: 'Job not found' });
+    res.json({ ok: true, job });
+  });
+}
 
 app.get('/api/settings', (_req, res) => {
   res.json(loadSettings());
@@ -247,6 +278,11 @@ app.listen(PORT, () => {
   console.log(`  Dashboard → http://localhost:${PORT}`);
   console.log(`  Schedule  : ${currentSchedule}`);
   console.log(`  Email to  : ${EMAIL_TO}`);
+  if (db.useRemote) {
+    console.log(`  Live DB   : ${db.liveUrl} (jobs sync here; mark proposals on live)`);
+  } else {
+    console.log('  Database  : local JSON (set REMOTE_DB_URL to use live server)');
+  }
   console.log('');
   restartCron(currentSchedule);
   runCycle();

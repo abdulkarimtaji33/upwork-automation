@@ -356,8 +356,10 @@ async function runCycle() {
 
         // Save to DB
         if (emailMode === 'db' || emailMode === 'both') {
-          try { db.upsertJob(fullJob, analysis, false); }
-          catch (err) { log('error', `DB save failed: ${err.message}`); }
+          try {
+            await db.upsertJob(fullJob, analysis, false);
+            log('info', db.useRemote ? 'Saved to live database' : 'Saved to local database');
+          } catch (err) { log('error', `DB save failed: ${err.message}`); }
         }
 
         // Send email
@@ -370,7 +372,7 @@ async function runCycle() {
             emitter.emit('job:email', { jobUid: job.jobUid, title: job.title });
             log('success', `Email sent: "${job.title}"`);
             if (emailMode === 'both') {
-              try { db.upsertJob(fullJob, analysis, true); } catch {}
+              try { await db.upsertJob(fullJob, analysis, true); } catch {}
             }
           } catch (err) { log('error', `Email failed for ${job.jobUid}: ${err.message}`); }
         }

@@ -11,4 +11,6 @@ Node.js stack: **upwork-bridge** (Chrome / Cloudflare) + **automation** (dashboa
 start_all.bat
 ```
 
-Production deploy: see [DEPLOY.md](DEPLOY.md).
+See [SETUP.md](SETUP.md) for local setup.
+
+**Local fetch + live database:** see [SETUP-SPLIT.md](SETUP-SPLIT.md) — automation runs on your PC; jobs sync to the VPS; mark proposals sent on the live UI only.

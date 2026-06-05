@@ -27,9 +27,9 @@ app.get('/cookies', (_req, res) => {
 app.get('/fetch/jobs', async (_req, res) => {
   try {
     const result = await chrome.fetchUrl(JOBS_URL);
-    if (result.blocked || !result.hasJobs) {
+    if (result.blocked || !result.ready) {
       return res.status(403).json({
-        error: 'Cloudflare block or no jobs in page',
+        error: 'Cloudflare block or jobs page not ready',
         ...result,
         html: undefined,
       });
@@ -50,6 +50,13 @@ app.get('/fetch', async (req, res) => {
     const result = await chrome.fetchUrl(String(url));
     if (result.blocked) {
       return res.status(403).json({ error: 'Cloudflare block', ...result, html: undefined });
+    }
+    if (!result.ready) {
+      return res.status(403).json({
+        error: 'Page not ready (timeout)',
+        ...result,
+        html: undefined,
+      });
     }
     res.type('html').send(result.html);
   } catch (err) {

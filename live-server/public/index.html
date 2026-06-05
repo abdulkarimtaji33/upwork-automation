@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upwork Proposals — Live</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: Inter, sans-serif; background: #020617; }
+    .proposal-content { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
+    .proposal-content.open { max-height: 800px; }
+  </style>
+</head>
+<body class="min-h-screen text-slate-100">
+<header class="border-b border-slate-800 bg-slate-900/80 sticky top-0 z-10">
+  <div class="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
+    <div>
+      <h1 class="font-semibold text-white text-sm">Upwork Proposals</h1>
+      <p class="text-xs text-slate-500">Mark sent · upload evidence</p>
+    </div>
+    <div class="flex gap-2">
+      <button id="tab-all-btn" onclick="switchView('all')" class="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-slate-700">All</button>
+      <button id="tab-sent-btn" onclick="switchView('sent')" class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500">Sent</button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-4xl mx-auto px-4 py-6">
+  <p id="jobs-count" class="text-xs text-slate-500 mb-4">Loading…</p>
+  <div id="jobs-list" class="space-y-4"></div>
+  <div id="jobs-empty" class="hidden text-center py-16 text-slate-500 text-sm">No jobs yet — local automation will sync them here.</div>
+</main>
+
+<div id="sent-overlay" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/75">
+  <div class="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6">
+    <h3 class="font-semibold text-white text-sm mb-1">Mark proposal sent</h3>
+    <p id="sent-modal-title" class="text-xs text-slate-500 mb-4 truncate"></p>
+    <label class="text-xs text-slate-500 block mb-1">Notes (optional)</label>
+    <textarea id="sent-notes" rows="2" class="w-full mb-3 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white p-2"></textarea>
+    <label class="text-xs text-slate-500 block mb-1">Evidence (optional)</label>
+    <input id="evidence-input" type="file" accept="image/*,.pdf" class="w-full text-xs text-slate-400 mb-4" />
+    <div class="flex gap-2">
+      <button onclick="closeSentModal()" class="flex-1 py-2 rounded-lg bg-slate-800 text-sm text-slate-300">Cancel</button>
+      <button id="sent-confirm-btn" onclick="confirmProposalSent()" class="flex-1 py-2 rounded-lg text-sm font-semibold text-white" style="background:linear-gradient(135deg,#14b8a6,#6366f1)">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let jobCards = [];
+let currentView = 'all';
+let sentModalJobUid = null;
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escJs(s) {
+  return String(s || '').replace(/\\/g,'\\\\').replace(/`/g,'\\`');
+}
+
+function buildCard(job) {
+  const score = job.score != null ? Math.round(job.score) : '—';
+  const sentBlock = job.proposalSent
+    ? `<span class="text-xs text-emerald-400">Sent ${job.proposalSentAt ? new Date(job.proposalSentAt).toLocaleDateString() : ''}</span>
+       ${job.evidencePath ? `<a href="${esc(job.evidencePath)}" target="_blank" class="text-xs text-slate-400 underline">Evidence</a>` : ''}
+       <button onclick="openSentModal('${job.jobUid}', \`${escJs(job.title)}\`)" class="text-xs text-slate-500 hover:text-white">Edit</button>`
+    : `<button onclick="openSentModal('${job.jobUid}', \`${escJs(job.title)}\`)" class="px-3 py-1.5 rounded-lg text-xs font-medium border border-emerald-800/50 text-emerald-400 hover:bg-emerald-900/30">Mark sent</button>`;
+
+  return `<article id="card-${job.jobUid}" class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+    <div class="flex justify-between gap-2 mb-2">
+      <a href="${esc(job.link)}" target="_blank" class="font-medium text-white text-sm hover:text-indigo-300">${esc(job.title)}</a>
+      <span class="text-xs font-mono text-indigo-400">${score}</span>
+    </div>
+    <p class="text-xs text-slate-500 mb-3 line-clamp-2">${esc(job.clientInfo || job.clientLocation || '')}</p>
+    <div class="flex flex-wrap gap-2 items-center">
+      <a href="${esc(job.link)}" target="_blank" class="text-xs text-slate-400 underline">Open on Upwork</a>
+      ${job.proposalDraft ? `<button onclick="toggleProposal('${job.jobUid}')" class="text-xs text-indigo-400">Proposal draft</button>` : ''}
+      <div class="ml-auto flex items-center gap-2">${sentBlock}</div>
+    </div>
+    ${job.proposalDraft ? `<div id="proposal-${job.jobUid}" class="proposal-content mt-3 pt-3 border-t border-slate-800"><pre class="text-xs text-slate-300 whitespace-pre-wrap font-sans">${esc(job.proposalDraft)}</pre></div>` : ''}
+    ${job.notes ? `<p class="text-xs text-slate-600 mt-2">Note: ${esc(job.notes)}</p>` : ''}
+  </article>`;
+}
+
+function toggleProposal(uid) {
+  const el = document.getElementById(`proposal-${uid}`);
+  if (el) el.classList.toggle('open');
+}
+
+function renderAllCards() {
+  const list = document.getElementById('jobs-list');
+  const empty = document.getElementById('jobs-empty');
+  if (!jobCards.length) {
+    list.innerHTML = '';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  list.innerHTML = jobCards.map(buildCard).join('');
+}
+
+async function loadJobs(onlySent) {
+  const r = await fetch(`/api/jobs${onlySent ? '?sent=true' : ''}`);
+  jobCards = await r.json();
+  document.getElementById('jobs-count').textContent = `${jobCards.length} job(s)`;
+  renderAllCards();
+}
+
+async function switchView(view) {
+  currentView = view;
+  document.getElementById('tab-all-btn').className = view === 'all'
+    ? 'px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-slate-700'
+    : 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500';
+  document.getElementById('tab-sent-btn').className = view === 'sent'
+    ? 'px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-slate-700'
+    : 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500';
+  await loadJobs(view === 'sent');
+}
+
+function openSentModal(jobUid, title) {
+  sentModalJobUid = jobUid;
+  document.getElementById('sent-modal-title').textContent = title;
+  document.getElementById('sent-notes').value = '';
+  document.getElementById('evidence-input').value = '';
+  const o = document.getElementById('sent-overlay');
+  o.classList.remove('hidden');
+  o.classList.add('flex');
+}
+
+function closeSentModal() {
+  document.getElementById('sent-overlay').classList.add('hidden');
+  document.getElementById('sent-overlay').classList.remove('flex');
+  sentModalJobUid = null;
+}
+
+async function confirmProposalSent() {
+  if (!sentModalJobUid) return;
+  const btn = document.getElementById('sent-confirm-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    const form = new FormData();
+    form.append('sent', 'true');
+    const notes = document.getElementById('sent-notes').value.trim();
+    if (notes) form.append('notes', notes);
+    const file = document.getElementById('evidence-input').files[0];
+    if (file) form.append('evidence', file);
+    const r = await fetch(`/api/jobs/${sentModalJobUid}/proposal-sent`, { method: 'POST', body: form });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Failed');
+    closeSentModal();
+    await loadJobs(currentView === 'sent');
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Confirm';
+  }
+}
+
+loadJobs(false);
+</script>
+</body>
+</html>

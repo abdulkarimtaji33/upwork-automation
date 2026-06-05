@@ -57,12 +57,41 @@ function pageLooksBlocked(html) {
   return BLOCKED_MARKERS.some((m) => html.includes(m));
 }
 
+function isJobListUrl(url) {
+  return url.includes('universal-search/jobs') || url.includes('/search/jobs');
+}
+
+function isJobDetailsUrl(url) {
+  return url.includes('job-details') || /\/jobs\/~/.test(url);
+}
+
 function htmlHasJobs(html) {
   return (
     html &&
     !pageLooksBlocked(html) &&
     (html.includes('data-ev-job-uid') || html.includes('job-tile-title-link'))
   );
+}
+
+function htmlHasJobDetails(html) {
+  return (
+    html &&
+    !pageLooksBlocked(html) &&
+    html.length > 50_000 &&
+    (html.includes('job-details-viewer') ||
+      html.includes('JobDetailsNuxt') ||
+      html.includes('cfe-ui-job-details-viewer') ||
+      html.includes('data-test="job-description-content"') ||
+      html.includes("data-test='job-description-content'") ||
+      html.includes('data-test="job-title"') ||
+      (html.includes('__NUXT_DATA__') && html.includes('"job":')))
+  );
+}
+
+function htmlReady(html, url) {
+  if (isJobDetailsUrl(url)) return htmlHasJobDetails(html);
+  if (isJobListUrl(url)) return htmlHasJobs(html);
+  return html && !pageLooksBlocked(html) && html.length > 3000;
 }
 
 async function cdpAlive() {
@@ -200,14 +229,35 @@ async function waitForJobs(page) {
   try {
     await page.waitForFunction(
       () => document.querySelectorAll('[data-ev-job-uid]').length > 0,
-      { timeout: 45000 },
+      { timeout: 20000 },
     );
   } catch {
     /* may still have partial HTML */
   }
 }
 
+async function waitForJobDetails(page) {
+  try {
+    await page.waitForFunction(
+      () =>
+        document.querySelector('[data-test="job-description-content"]') ||
+        document.querySelector('[data-test="job-title"]'),
+      { timeout: 20000 },
+    );
+  } catch {
+    /* return best-effort HTML */
+  }
+}
+
 async function fetchUrl(url) {
+  const started = Date.now();
+  const isDetails = isJobDetailsUrl(url);
+  const isList = isJobListUrl(url);
+  const maxLoops = isDetails ? 6 : 15;
+  const timeout = isDetails ? 60_000 : FETCH_TIMEOUT_MS;
+
+  console.log(`[fetch] ${isDetails ? 'details' : 'page'} ${url.slice(0, 90)}...`);
+
   const b = await getBrowser();
   const page = await pickPage(b);
 
@@ -219,7 +269,6 @@ async function fetchUrl(url) {
 
   if (alreadyOnDomain && currentlyBlocked) {
     console.log('[chrome] CF challenge active — waiting for user to solve (up to 5 min)…');
-    // Wait up to 5 minutes for the challenge to clear before navigating
     const deadline = Date.now() + 5 * 60 * 1000;
     while (Date.now() < deadline) {
       await new Promise(r => setTimeout(r, 3000));
@@ -230,27 +279,26 @@ async function fetchUrl(url) {
       }
     }
   } else {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: FETCH_TIMEOUT_MS });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
   }
 
-  // Wait for at least one job to appear
   html = await page.content().catch(() => '');
-  for (let i = 0; i < 25 && !htmlHasJobs(html); i++) {
-    await waitForJobs(page);
+  for (let i = 0; i < maxLoops && !htmlReady(html, url); i++) {
+    if (isDetails) await waitForJobDetails(page);
+    else if (isList) await waitForJobs(page);
     html = await page.content().catch(() => '');
-    if (htmlHasJobs(html)) break;
-    await new Promise((r) => setTimeout(r, 1000));
+    if (htmlReady(html, url)) break;
+    await new Promise((r) => setTimeout(r, 800));
   }
 
-  // Scroll to trigger React lazy-rendering — keeps scrolling until job count stabilizes
-  if (htmlHasJobs(html)) {
+  if (isList && htmlHasJobs(html)) {
     let prevCount = 0;
     let stableRounds = 0;
     for (let i = 0; i < 12; i++) {
       const count = await page.$$eval('[data-ev-job-uid]', (els) => els.length).catch(() => 0);
       if (count === prevCount) {
         stableRounds++;
-        if (stableRounds >= 3) break; // stable for 3 consecutive checks
+        if (stableRounds >= 3) break;
       } else {
         stableRounds = 0;
         prevCount = count;
@@ -259,17 +307,23 @@ async function fetchUrl(url) {
       await new Promise((r) => setTimeout(r, 1500));
     }
     html = await page.content();
-    console.log(`[chrome] ${url.includes('upwork.com') ? 'jobs' : 'page'} — ${prevCount} job tiles after scroll`);
+    console.log(`[chrome] jobs — ${prevCount} job tiles after scroll`);
   }
 
   const cookies = await page.cookies();
   saveCookies(cookies);
 
+  const ready = htmlReady(html, url);
+  const elapsed = ((Date.now() - started) / 1000).toFixed(1);
+  console.log(`[fetch] done ${elapsed}s ready=${ready} len=${html.length}`);
+
   return {
     html,
     length: html.length,
     blocked: pageLooksBlocked(html),
+    ready,
     hasJobs: htmlHasJobs(html),
+    hasJobDetails: htmlHasJobDetails(html),
     hasCfClearance: cookies.some((c) => c.name === 'cf_clearance'),
     cookieCount: cookies.filter((c) => (c.domain || '').includes('upwork.com')).length,
   };

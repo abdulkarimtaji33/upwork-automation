@@ -1,0 +1,5 @@
+requests>=2.31.0
+websocket-client>=1.7.0
+browser-cookie3>=0.19.1
+playwright>=1.40.0
+curl_cffi>=0.7.0
