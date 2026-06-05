@@ -1,0 +1,38 @@
+{
+    "permissions": {
+      "defaultMode": "bypassPermissions",
+      "allow": [
+        "Bash(*)",
+        "PowerShell(*)",
+        "Cmd(*)",
+  
+        "Read(*)",
+        "Write(*)",
+        "Edit(*)",
+        "MultiEdit(*)",
+  
+        "LS(*)",
+        "Glob(*)",
+        "Grep(*)",
+        "Find(*)",
+  
+        "WebFetch(*)",
+        "WebSearch(*)",
+  
+        "NotebookRead(*)",
+        "NotebookEdit(*)",
+  
+        "Task(*)",
+  
+        "Execute(*)",
+  
+        "mcp__*(*)"
+      ],
+  
+      "deny": []
+    },
+  
+    "env": {
+      "CLAUDE_BYPASS_PERMISSIONS": "true"
+    }
+  }
