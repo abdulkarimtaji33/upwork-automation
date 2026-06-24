@@ -106,6 +106,77 @@ async function cdpAlive() {
   }
 }
 
+async function listCdpPages() {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 3000);
+  try {
+    const r = await fetch(`${CDP_BASE}/json/list`, { signal: ctrl.signal });
+    if (!r.ok) return [];
+    return r.json();
+  } catch {
+    return [];
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+function titleLooksBlocked(title) {
+  if (!title) return false;
+  return BLOCKED_MARKERS.some((m) => title.includes(m));
+}
+
+/** Check CF state via CDP only — avoids Puppeteer touching the page during manual solve. */
+async function cfBlockedViaCdp() {
+  const pages = await listCdpPages();
+  const upwork = pages.find((p) => (p.url || '').includes('upwork.com'));
+  if (!upwork) return false;
+  return titleLooksBlocked(upwork.title);
+}
+
+/** Wait for user to solve CF without Puppeteer (CDP attach resets the challenge). */
+async function waitForCfClearance(maxMs = 5 * 60 * 1000) {
+  console.log('[chrome] CF challenge active — solve it manually in the Chrome window (up to 5 min)…');
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 5000));
+    if (!(await cfBlockedViaCdp())) {
+      console.log('[chrome] CF challenge resolved — proceeding');
+      await new Promise((r) => setTimeout(r, 2000));
+      return true;
+    }
+  }
+  console.log('[chrome] CF challenge still active after timeout');
+  return false;
+}
+
+function buildChromeArgs(startUrl) {
+  const args = [
+    `--remote-debugging-port=${CDP_PORT}`,
+    '--remote-allow-origins=*',
+    `--user-data-dir=${PROFILE}`,
+    '--no-first-run',
+    '--no-default-browser-check',
+  ];
+
+  if (process.platform === 'win32') {
+    // Minimal flags on Windows — automation flags + fake Linux UA trigger CF loops.
+    args.push(startUrl);
+    return args;
+  }
+
+  // Linux / VPS headless
+  args.push(
+    '--disable-sync',
+    '--disable-dev-shm-usage',
+    '--no-sandbox',
+    '--disable-gpu',
+    '--window-size=1920,1080',
+    '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.7778.215 Safari/537.36',
+    startUrl,
+  );
+  return args;
+}
+
 function launchChrome() {
   const chrome = findChrome();
   if (!chrome) throw new Error('Google Chrome not found');
@@ -123,22 +194,7 @@ function launchChrome() {
 
   chromeProcess = spawn(
     chrome,
-    [
-      `--remote-debugging-port=${CDP_PORT}`,
-      '--remote-allow-origins=*',
-      `--user-data-dir=${PROFILE}`,
-      '--no-first-run',
-      '--no-default-browser-check',
-      '--disable-sync',
-      '--disable-dev-shm-usage',
-      '--no-sandbox',
-      '--disable-gpu',
-      '--disable-blink-features=AutomationControlled',
-      '--disable-features=IsolateOrigins,site-per-process',
-      '--window-size=1920,1080',
-      '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.7778.215 Safari/537.36',
-      JOBS_URL,
-    ],
+    buildChromeArgs(JOBS_URL),
     { detached: false, stdio: 'ignore', env },
   );
 
@@ -166,6 +222,7 @@ async function ensureChrome() {
 }
 
 async function applyStealthToPage(page) {
+  if (process.platform === 'win32') return; // real Chrome on Windows — injections can re-trigger CF
   // Patch runs in ALL frames including cross-origin iframes via CDP worldName
   await page.evaluateOnNewDocument(() => {
     // Hide webdriver
@@ -258,28 +315,50 @@ async function fetchUrl(url) {
 
   console.log(`[fetch] ${isDetails ? 'details' : 'page'} ${url.slice(0, 90)}...`);
 
+  await ensureChrome();
+
+  // Wait for manual CF solve before Puppeteer attaches (CDP control resets the challenge).
+  if (await cfBlockedViaCdp()) {
+    const cleared = await waitForCfClearance();
+    if (!cleared) {
+      return {
+        html: '',
+        length: 0,
+        blocked: true,
+        ready: false,
+        hasJobs: false,
+        hasJobDetails: false,
+        hasCfClearance: false,
+        cookieCount: 0,
+      };
+    }
+  }
+
   const b = await getBrowser();
   const page = await pickPage(b);
 
-  // If Chrome is already on a CF challenge for this domain, DON'T navigate —
-  // doing so interrupts the user's manual verification. Just wait for it to clear.
   let html = await page.content().catch(() => '');
-  const alreadyOnDomain = (page.url() || '').includes('upwork.com');
-  const currentlyBlocked = pageLooksBlocked(html);
+  const onUpwork = (page.url() || '').includes('upwork.com');
+  const needsNav = !onUpwork || (!htmlReady(html, url) && !pageLooksBlocked(html));
 
-  if (alreadyOnDomain && currentlyBlocked) {
-    console.log('[chrome] CF challenge active — waiting for user to solve (up to 5 min)…');
-    const deadline = Date.now() + 5 * 60 * 1000;
-    while (Date.now() < deadline) {
-      await new Promise(r => setTimeout(r, 3000));
-      html = await page.content().catch(() => '');
-      if (!pageLooksBlocked(html)) {
-        console.log('[chrome] CF challenge resolved — proceeding');
-        break;
-      }
-    }
-  } else {
+  if (needsNav && !pageLooksBlocked(html)) {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
+    html = await page.content().catch(() => '');
+  } else if (pageLooksBlocked(html)) {
+    const cleared = await waitForCfClearance();
+    if (!cleared) {
+      return {
+        html: html || '',
+        length: (html || '').length,
+        blocked: true,
+        ready: false,
+        hasJobs: false,
+        hasJobDetails: false,
+        hasCfClearance: false,
+        cookieCount: 0,
+      };
+    }
+    html = await page.content().catch(() => '');
   }
 
   html = await page.content().catch(() => '');

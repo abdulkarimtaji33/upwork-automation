@@ -39,7 +39,11 @@ async function updateNotes() {
 }
 
 async function getJobs(opts = {}) {
-  const q = opts.onlyProposalSent ? '?sent=true' : '';
+  const params = new URLSearchParams();
+  if (opts.onlyProposalSent) params.set('sent', 'true');
+  if (opts.sort) params.set('sort', opts.sort);
+  if (opts.minScore != null) params.set('minScore', String(opts.minScore));
+  const q = params.toString() ? `?${params}` : '';
   return request('GET', `/api/jobs${q}`);
 }
 

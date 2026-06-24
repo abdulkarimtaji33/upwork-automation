@@ -43,7 +43,9 @@ function upsertJob(job, analysis, emailSent = false) {
     hasPreviousPayments: analysis.hasPreviousPayments,
     reasoning: analysis.reasoning,
     proposalDraft: analysis.proposalDraft,
-    milestones: analysis.milestones || [],
+    milestones: (analysis.milestones && analysis.milestones.length)
+      ? analysis.milestones
+      : (old.milestones || []),
     emailSent: emailSent || old.emailSent || false,
     proposalSent: old.proposalSent || false,
     proposalSentAt: old.proposalSentAt || null,

@@ -43,7 +43,9 @@ function requireApiKey(req, res, next) {
 // ─── Read (browser UI — no API key) ──────────────────────────────────────────
 app.get('/api/jobs', (req, res) => {
   const onlyProposalSent = req.query.sent === 'true';
-  res.json(db.getJobs({ onlyRelevant: true, onlyProposalSent }));
+  const sort = req.query.sort || 'score_desc';
+  const minScore = req.query.minScore != null && req.query.minScore !== '' ? Number(req.query.minScore) : null;
+  res.json(db.getJobs({ onlyRelevant: true, onlyProposalSent, sort, minScore }));
 });
 
 app.get('/api/jobs/:jobUid', (req, res) => {
@@ -68,6 +70,16 @@ app.post('/api/jobs', requireApiKey, (req, res) => {
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }
+});
+
+app.post('/api/jobs/:jobUid/milestones', requireApiKey, (req, res) => {
+  const { milestones } = req.body;
+  if (!Array.isArray(milestones) || !milestones.length) {
+    return res.status(400).json({ ok: false, error: 'milestones array required' });
+  }
+  const job = db.updateMilestones(req.params.jobUid, milestones);
+  if (!job) return res.status(404).json({ ok: false, error: 'Job not found' });
+  res.json({ ok: true, job });
 });
 
 // ─── Proposal tracking (UI — no API key so team can mark sent in browser) ───

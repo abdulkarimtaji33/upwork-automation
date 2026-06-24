@@ -4,7 +4,8 @@
   "description": "Live DB + proposal tracking UI (no Upwork fetching)",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "deploy:vps": "bash scripts/deploy-on-server.sh"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",

@@ -3,30 +3,44 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Upwork Proposals — Live</title>
+  <title>Upwork Jobs — Live</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     body { font-family: Inter, sans-serif; background: #020617; }
     .proposal-content { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
-    .proposal-content.open { max-height: 800px; }
+    .proposal-content.open { max-height: 1200px; }
   </style>
 </head>
 <body class="min-h-screen text-slate-100">
 <header class="border-b border-slate-800 bg-slate-900/80 sticky top-0 z-10">
-  <div class="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
+  <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
     <div>
-      <h1 class="font-semibold text-white text-sm">Upwork Proposals</h1>
-      <p class="text-xs text-slate-500">Mark sent · upload evidence</p>
+      <h1 class="font-semibold text-white text-sm">Upwork Jobs</h1>
+      <p class="text-xs text-slate-500">View · filter · mark proposals sent</p>
     </div>
-    <div class="flex gap-2">
+    <div class="flex flex-wrap items-center gap-2">
+      <select id="sort-select" onchange="reloadJobs()" class="text-xs bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200">
+        <option value="score_desc">Score: high → low</option>
+        <option value="score_asc">Score: low → high</option>
+        <option value="created_desc">Newest first</option>
+        <option value="created_asc">Oldest first</option>
+      </select>
+      <select id="min-score" onchange="reloadJobs()" class="text-xs bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200">
+        <option value="">All scores</option>
+        <option value="50">Score ≥ 50</option>
+        <option value="60">Score ≥ 60</option>
+        <option value="70">Score ≥ 70</option>
+        <option value="80">Score ≥ 80</option>
+        <option value="90">Score ≥ 90</option>
+      </select>
       <button id="tab-all-btn" onclick="switchView('all')" class="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-slate-700">All</button>
       <button id="tab-sent-btn" onclick="switchView('sent')" class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500">Sent</button>
     </div>
   </div>
 </header>
 
-<main class="max-w-4xl mx-auto px-4 py-6">
+<main class="max-w-5xl mx-auto px-4 py-6">
   <p id="jobs-count" class="text-xs text-slate-500 mb-4">Loading…</p>
   <div id="jobs-list" class="space-y-4"></div>
   <div id="jobs-empty" class="hidden text-center py-16 text-slate-500 text-sm">No jobs yet — local automation will sync them here.</div>
@@ -59,6 +73,29 @@ function escJs(s) {
   return String(s || '').replace(/\\/g,'\\\\').replace(/`/g,'\\`');
 }
 
+function scoreColor(s) {
+  if (s >= 80) return 'text-emerald-400';
+  if (s >= 60) return 'text-amber-400';
+  return 'text-slate-400';
+}
+
+function buildMilestones(job) {
+  if (!job.milestones || !job.milestones.length) return '';
+  const items = job.milestones.map((m, i) => `
+    <li class="text-xs text-slate-300 py-1.5 border-b border-slate-800 last:border-0">
+      <span class="text-indigo-400 font-medium">${i + 1}. ${esc(m.title)}</span>
+      <span class="text-slate-500 ml-2">${esc(m.duration || '')}</span>
+      <p class="text-slate-500 mt-0.5">${esc(m.description || '')}</p>
+    </li>`).join('');
+  return `
+    <button onclick="toggleSection('ms-${job.jobUid}', 'ms-lbl-${job.jobUid}')" class="text-xs text-indigo-400 hover:text-indigo-300">
+      <span id="ms-lbl-${job.jobUid}">Milestones (${job.milestones.length}) ▾</span>
+    </button>
+    <div id="ms-${job.jobUid}" class="proposal-content mt-2">
+      <ol class="rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-1">${items}</ol>
+    </div>`;
+}
+
 function buildCard(job) {
   const score = job.score != null ? Math.round(job.score) : '—';
   const sentBlock = job.proposalSent
@@ -70,21 +107,24 @@ function buildCard(job) {
   return `<article id="card-${job.jobUid}" class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
     <div class="flex justify-between gap-2 mb-2">
       <a href="${esc(job.link)}" target="_blank" class="font-medium text-white text-sm hover:text-indigo-300">${esc(job.title)}</a>
-      <span class="text-xs font-mono text-indigo-400">${score}</span>
+      <span class="text-sm font-bold tabular-nums ${scoreColor(Number(job.score))}">${score}</span>
     </div>
-    <p class="text-xs text-slate-500 mb-3 line-clamp-2">${esc(job.clientInfo || job.clientLocation || '')}</p>
-    <div class="flex flex-wrap gap-2 items-center">
+    <p class="text-xs text-slate-500 mb-1">${esc(job.clientInfo || job.clientLocation || '')}</p>
+    <p class="text-xs text-slate-600 mb-3">${job.postedAt ? 'Posted ' + esc(job.postedAt) : ''}${job.jobType ? ' · ' + esc(job.jobType) : ''}</p>
+    <div class="flex flex-wrap gap-3 items-center mb-2">
       <a href="${esc(job.link)}" target="_blank" class="text-xs text-slate-400 underline">Open on Upwork</a>
-      ${job.proposalDraft ? `<button onclick="toggleProposal('${job.jobUid}')" class="text-xs text-indigo-400">Proposal draft</button>` : ''}
+      ${job.proposalDraft ? `<button onclick="toggleSection('proposal-${job.jobUid}', 'prop-lbl-${job.jobUid}')" class="text-xs text-indigo-400"><span id="prop-lbl-${job.jobUid}">Proposal draft ▾</span></button>` : ''}
+      ${buildMilestones(job)}
       <div class="ml-auto flex items-center gap-2">${sentBlock}</div>
     </div>
-    ${job.proposalDraft ? `<div id="proposal-${job.jobUid}" class="proposal-content mt-3 pt-3 border-t border-slate-800"><pre class="text-xs text-slate-300 whitespace-pre-wrap font-sans">${esc(job.proposalDraft)}</pre></div>` : ''}
+    ${job.proposalDraft ? `<div id="proposal-${job.jobUid}" class="proposal-content mt-2 pt-2 border-t border-slate-800"><pre class="text-xs text-slate-300 whitespace-pre-wrap font-sans">${esc(job.proposalDraft)}</pre></div>` : ''}
+    ${job.reasoning ? `<p class="text-xs text-slate-600 mt-2 line-clamp-2">${esc(job.reasoning)}</p>` : ''}
     ${job.notes ? `<p class="text-xs text-slate-600 mt-2">Note: ${esc(job.notes)}</p>` : ''}
   </article>`;
 }
 
-function toggleProposal(uid) {
-  const el = document.getElementById(`proposal-${uid}`);
+function toggleSection(id, lblId) {
+  const el = document.getElementById(id);
   if (el) el.classList.toggle('open');
 }
 
@@ -100,11 +140,25 @@ function renderAllCards() {
   list.innerHTML = jobCards.map(buildCard).join('');
 }
 
-async function loadJobs(onlySent) {
-  const r = await fetch(`/api/jobs${onlySent ? '?sent=true' : ''}`);
+function queryParams() {
+  const sort = document.getElementById('sort-select').value;
+  const minScore = document.getElementById('min-score').value;
+  const params = new URLSearchParams();
+  if (currentView === 'sent') params.set('sent', 'true');
+  if (sort) params.set('sort', sort);
+  if (minScore) params.set('minScore', minScore);
+  return params.toString() ? '?' + params.toString() : '';
+}
+
+async function loadJobs() {
+  const r = await fetch('/api/jobs' + queryParams());
   jobCards = await r.json();
   document.getElementById('jobs-count').textContent = `${jobCards.length} job(s)`;
   renderAllCards();
+}
+
+async function reloadJobs() {
+  await loadJobs();
 }
 
 async function switchView(view) {
@@ -115,7 +169,7 @@ async function switchView(view) {
   document.getElementById('tab-sent-btn').className = view === 'sent'
     ? 'px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-slate-700'
     : 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500';
-  await loadJobs(view === 'sent');
+  await loadJobs();
 }
 
 function openSentModal(jobUid, title) {
@@ -150,7 +204,7 @@ async function confirmProposalSent() {
     const d = await r.json();
     if (!d.ok) throw new Error(d.error || 'Failed');
     closeSentModal();
-    await loadJobs(currentView === 'sent');
+    await loadJobs();
   } catch (e) {
     alert(e.message);
   } finally {
@@ -159,7 +213,7 @@ async function confirmProposalSent() {
   }
 }
 
-loadJobs(false);
+loadJobs();
 </script>
 </body>
 </html>

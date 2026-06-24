@@ -99,6 +99,12 @@ function upsertJob(job, analysis, emailSent = false) {
   const existing = d.prepare('SELECT * FROM jobs WHERE job_uid = ?').get(job.jobUid);
   const now = new Date().toISOString();
 
+  const incomingMilestones = analysis.milestones || [];
+  const existingMilestones = existing?.milestones ? JSON.parse(existing.milestones) : [];
+  const milestonesJson = incomingMilestones.length > 0
+    ? JSON.stringify(incomingMilestones)
+    : JSON.stringify(existingMilestones);
+
   const record = {
     job_uid: job.jobUid,
     title: job.title,
@@ -124,7 +130,7 @@ function upsertJob(job, analysis, emailSent = false) {
     has_previous_payments: analysis.hasPreviousPayments ? 1 : 0,
     reasoning: analysis.reasoning,
     proposal_draft: analysis.proposalDraft,
-    milestones: JSON.stringify(analysis.milestones || []),
+    milestones: milestonesJson,
     email_sent: emailSent || (existing?.email_sent ?? 0),
     proposal_sent: existing?.proposal_sent ?? 0,
     proposal_sent_at: existing?.proposal_sent_at ?? null,
@@ -174,7 +180,10 @@ function upsertJob(job, analysis, emailSent = false) {
       has_previous_payments = excluded.has_previous_payments,
       reasoning = excluded.reasoning,
       proposal_draft = excluded.proposal_draft,
-      milestones = excluded.milestones,
+      milestones = CASE
+        WHEN excluded.milestones IS NOT NULL AND excluded.milestones != '[]' THEN excluded.milestones
+        ELSE jobs.milestones
+      END,
       email_sent = CASE WHEN excluded.email_sent = 1 THEN 1 ELSE jobs.email_sent END,
       updated_at = excluded.updated_at
   `).run(record);
@@ -214,14 +223,36 @@ function updateNotes(jobUid, notes) {
   return rowToJob(d.prepare('SELECT * FROM jobs WHERE job_uid = ?').get(jobUid));
 }
 
-function getJobs({ onlyRelevant = true, onlyProposalSent = false, limit = 300 } = {}) {
+function updateMilestones(jobUid, milestones) {
   const d = getDb();
+  const existing = d.prepare('SELECT * FROM jobs WHERE job_uid = ?').get(jobUid);
+  if (!existing) return null;
+  const current = existing.milestones ? JSON.parse(existing.milestones) : [];
+  if (current.length > 0) return rowToJob(existing);
+  if (!milestones || !milestones.length) return rowToJob(existing);
+  d.prepare('UPDATE jobs SET milestones = ?, updated_at = ? WHERE job_uid = ?')
+    .run(JSON.stringify(milestones), new Date().toISOString(), jobUid);
+  return rowToJob(d.prepare('SELECT * FROM jobs WHERE job_uid = ?').get(jobUid));
+}
+
+function getJobs({ onlyRelevant = true, onlyProposalSent = false, limit = 500, sort = 'created_desc', minScore = null } = {}) {
+  const d = getDb();
+  const sortMap = {
+    score_desc: 'score IS NULL, score DESC, created_at DESC',
+    score_asc: 'score IS NULL, score ASC, created_at DESC',
+    created_desc: 'created_at DESC',
+    created_asc: 'created_at ASC',
+  };
+  const orderBy = sortMap[sort] || sortMap.created_desc;
   let sql = 'SELECT * FROM jobs WHERE 1=1';
-  const params = {};
+  const params = { limit };
   if (onlyRelevant) sql += ' AND is_relevant = 1';
   if (onlyProposalSent) sql += ' AND proposal_sent = 1';
-  sql += ' ORDER BY created_at DESC LIMIT @limit';
-  params.limit = limit;
+  if (minScore != null && minScore !== '') {
+    sql += ' AND score >= @minScore';
+    params.minScore = Number(minScore);
+  }
+  sql += ` ORDER BY ${orderBy} LIMIT @limit`;
   return d.prepare(sql).all(params).map(rowToJob);
 }
 
@@ -247,4 +278,4 @@ function getStats() {
   };
 }
 
-module.exports = { upsertJob, markProposalSent, updateNotes, getJobs, getJob, getStats };
+module.exports = { upsertJob, markProposalSent, updateNotes, updateMilestones, getJobs, getJob, getStats };
