@@ -100,7 +100,7 @@ async function main() {
       fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
 
       if (REMOTE_DB_URL) {
-        await syncMilestonesToLive(job.jobUid, milestones);
+        // Live sync happens during migrate-to-live.js after jobs exist on server
       }
       ok++;
       await new Promise((r) => setTimeout(r, 500));
