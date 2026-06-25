@@ -10,32 +10,85 @@
     body { font-family: Inter, sans-serif; background: #020617; }
     .proposal-content { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
     .proposal-content.open { max-height: 1200px; }
+    .filter-select { font-size: 11px; background: #020617; border: 1px solid #334155; border-radius: 8px; padding: 6px 8px; color: #e2e8f0; }
   </style>
 </head>
 <body class="min-h-screen text-slate-100">
-<header class="border-b border-slate-800 bg-slate-900/80 sticky top-0 z-10">
-  <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-    <div>
-      <h1 class="font-semibold text-white text-sm">Upwork Jobs</h1>
-      <p class="text-xs text-slate-500">View · filter · mark proposals sent</p>
+<header class="border-b border-slate-800 bg-slate-900/90 sticky top-0 z-10 backdrop-blur">
+  <div class="max-w-5xl mx-auto px-4 py-3">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+      <div>
+        <h1 class="font-semibold text-white text-sm">Upwork Jobs</h1>
+        <p class="text-xs text-slate-500">View · filter · mark proposals sent</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <button id="tab-all-btn" onclick="switchView('all')" class="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-slate-700">All</button>
+        <button id="tab-sent-btn" onclick="switchView('sent')" class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500">Sent only</button>
+        <button id="tab-unsent-btn" onclick="switchView('unsent')" class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500">Not sent</button>
+        <button onclick="toggleFilters()" class="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-700 text-slate-300 hover:bg-slate-800">Filters ▾</button>
+      </div>
     </div>
-    <div class="flex flex-wrap items-center gap-2">
-      <select id="sort-select" onchange="reloadJobs()" class="text-xs bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200">
-        <option value="score_desc">Score: high → low</option>
-        <option value="score_asc">Score: low → high</option>
-        <option value="created_desc">Newest first</option>
-        <option value="created_asc">Oldest first</option>
+
+    <div id="filters-panel" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 pb-1">
+      <input id="f-search" type="search" placeholder="Search title…" oninput="applyFilters()" class="filter-select col-span-2 sm:col-span-1 lg:col-span-2" />
+      <select id="f-sort" onchange="applyFilters()" class="filter-select">
+        <option value="score_desc">Score ↓</option>
+        <option value="score_asc">Score ↑</option>
+        <option value="posted_asc">Posted: newest</option>
+        <option value="posted_desc">Posted: oldest</option>
+        <option value="created_desc">Synced: newest</option>
+        <option value="created_asc">Synced: oldest</option>
       </select>
-      <select id="min-score" onchange="reloadJobs()" class="text-xs bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-slate-200">
-        <option value="">All scores</option>
+      <select id="f-min-score" onchange="applyFilters()" class="filter-select">
+        <option value="">Any score</option>
         <option value="50">Score ≥ 50</option>
         <option value="60">Score ≥ 60</option>
         <option value="70">Score ≥ 70</option>
         <option value="80">Score ≥ 80</option>
         <option value="90">Score ≥ 90</option>
       </select>
-      <button id="tab-all-btn" onclick="switchView('all')" class="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-slate-700">All</button>
-      <button id="tab-sent-btn" onclick="switchView('sent')" class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500">Sent</button>
+      <select id="f-posted" onchange="applyFilters()" class="filter-select">
+        <option value="">Any posted date</option>
+        <option value="0">Today / hours</option>
+        <option value="1">Last 24h</option>
+        <option value="3">Last 3 days</option>
+        <option value="7">Last week</option>
+        <option value="30">Last month</option>
+      </select>
+      <select id="f-location" onchange="applyFilters()" class="filter-select">
+        <option value="">Any location</option>
+      </select>
+      <select id="f-budget" onchange="applyFilters()" class="filter-select">
+        <option value="">Any budget type</option>
+        <option value="hourly">Hourly</option>
+        <option value="fixed">Fixed-price</option>
+        <option value="unknown">Unknown</option>
+      </select>
+      <select id="f-verified" onchange="applyFilters()" class="filter-select">
+        <option value="">Payment: any</option>
+        <option value="yes">Verified</option>
+        <option value="no">Unverified</option>
+      </select>
+      <select id="f-experience" onchange="applyFilters()" class="filter-select">
+        <option value="">Any experience</option>
+      </select>
+      <select id="f-trust" onchange="applyFilters()" class="filter-select">
+        <option value="">Any trust</option>
+        <option value="high">High trust</option>
+        <option value="medium">Medium trust</option>
+        <option value="low">Low trust</option>
+      </select>
+      <select id="f-milestones" onchange="applyFilters()" class="filter-select">
+        <option value="">Milestones: any</option>
+        <option value="yes">Has milestones</option>
+        <option value="no">No milestones</option>
+      </select>
+      <select id="f-proposal" onchange="applyFilters()" class="filter-select">
+        <option value="">Proposal draft: any</option>
+        <option value="yes">Has draft</option>
+        <option value="no">No draft</option>
+      </select>
+      <button onclick="clearFilters()" class="filter-select text-slate-400 hover:text-white hover:border-slate-500">Clear</button>
     </div>
   </div>
 </header>
@@ -43,7 +96,7 @@
 <main class="max-w-5xl mx-auto px-4 py-6">
   <p id="jobs-count" class="text-xs text-slate-500 mb-4">Loading…</p>
   <div id="jobs-list" class="space-y-4"></div>
-  <div id="jobs-empty" class="hidden text-center py-16 text-slate-500 text-sm">No jobs yet — local automation will sync them here.</div>
+  <div id="jobs-empty" class="hidden text-center py-16 text-slate-500 text-sm">No jobs match your filters.</div>
 </main>
 
 <div id="sent-overlay" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/75">
@@ -62,9 +115,11 @@
 </div>
 
 <script>
-let jobCards = [];
+let allJobs = [];
+let filteredJobs = [];
 let currentView = 'all';
 let sentModalJobUid = null;
+let filtersOpen = true;
 
 function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -86,6 +141,38 @@ function formatJobPrice(job) {
   return m ? m[0] : (jt && /hourly|fixed/i.test(jt) ? jt : '');
 }
 
+function parsePostedDays(s) {
+  if (!s) return 9999;
+  const t = String(s).toLowerCase();
+  if (t.includes('minute') || t.includes('hour') || t.includes('just now')) return 0;
+  if (t.includes('yesterday')) return 1;
+  const d = t.match(/(\d+)\s*day/);
+  if (d) return Number(d[1]);
+  const w = t.match(/(\d+)\s*week/);
+  if (w) return Number(w[1]) * 7;
+  if (t.includes('week')) return 7;
+  const mo = t.match(/(\d+)\s*month/);
+  if (mo) return Number(mo[1]) * 30;
+  if (t.includes('month')) return 30;
+  return 9999;
+}
+
+function trustLevel(job) {
+  const t = String(job.clientTrust || '').toLowerCase();
+  if (/high|excellent|strong|good|trusted/.test(t)) return 'high';
+  if (/low|poor|weak|unverified|risk|concern|caution/.test(t)) return 'low';
+  if (t) return 'medium';
+  return '';
+}
+
+function jobBudgetType(job) {
+  if (job.budgetType && job.budgetType !== 'unknown') return job.budgetType;
+  const jt = job.jobType || '';
+  if (/hourly/i.test(jt)) return 'hourly';
+  if (/fixed/i.test(jt)) return 'fixed';
+  return 'unknown';
+}
+
 function buildMilestones(job) {
   if (!job.milestones || !job.milestones.length) return '';
   const items = job.milestones.map((m, i) => `
@@ -101,7 +188,7 @@ function buildMilestones(job) {
     ? `<p class="text-xs text-indigo-300 mt-2 font-medium">Recommended total: ${esc(job.quotedTotal)}</p>` : '';
   return `
     <button onclick="toggleSection('ms-${job.jobUid}')" class="text-xs text-indigo-400 hover:text-indigo-300">
-      <span id="ms-lbl-${job.jobUid}">Milestones (${job.milestones.length}) ▾</span>
+      Milestones (${job.milestones.length}) ▾
     </button>
     <div id="ms-${job.jobUid}" class="proposal-content mt-2">
       <ol class="rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-1">${items}</ol>
@@ -111,6 +198,7 @@ function buildMilestones(job) {
 
 function buildCard(job) {
   const score = job.score != null ? Math.round(job.score) : '—';
+  const skills = (job.skills || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 5);
   const sentBlock = job.proposalSent
     ? `<span class="text-xs text-emerald-400">Sent ${job.proposalSentAt ? new Date(job.proposalSentAt).toLocaleDateString() : ''}</span>
        ${job.evidencePath ? `<a href="${esc(job.evidencePath)}" target="_blank" class="text-xs text-slate-400 underline">Evidence</a>` : ''}
@@ -118,75 +206,154 @@ function buildCard(job) {
     : `<button onclick="openSentModal('${job.jobUid}', \`${escJs(job.title)}\`)" class="px-3 py-1.5 rounded-lg text-xs font-medium border border-emerald-800/50 text-emerald-400 hover:bg-emerald-900/30">Mark sent</button>`;
 
   return `<article id="card-${job.jobUid}" class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-    <div class="flex justify-between gap-2 mb-2">
-      <a href="${esc(job.link)}" target="_blank" class="font-medium text-white text-sm hover:text-indigo-300">${esc(job.title)}</a>
-      <span class="text-sm font-bold tabular-nums ${scoreColor(Number(job.score))}">${score}</span>
+    <div class="flex justify-between gap-2 mb-3">
+      <a href="${esc(job.link)}" target="_blank" class="font-medium text-white text-sm hover:text-indigo-300 leading-snug">${esc(job.title)}</a>
+      <span class="text-sm font-bold tabular-nums flex-shrink-0 ${scoreColor(Number(job.score))}">${score}</span>
     </div>
-    <p class="text-xs text-slate-500 mb-2 flex flex-wrap gap-x-3 gap-y-1">
-      ${job.clientLocation ? `<span>📍 ${esc(job.clientLocation)}</span>` : ''}
-      ${formatJobPrice(job) ? `<span class="text-emerald-400 font-medium">💵 ${esc(formatJobPrice(job))}</span>` : ''}
-      ${job.budgetType && job.budgetType !== 'unknown' ? `<span class="text-slate-600">${esc(job.budgetType)}</span>` : ''}
-    </p>
-    <p class="text-xs text-slate-600 mb-3">${job.postedAt ? 'Posted ' + esc(job.postedAt) : ''}${job.experienceLevel ? ' · ' + esc(job.experienceLevel) : ''}${job.quotedTotal && job.quotedTotal !== 'N/A' ? ' · Bid ' + esc(job.quotedTotal) : ''}</p>
-    <div class="flex flex-wrap gap-3 items-center mb-2">
+
+    <div class="flex flex-wrap gap-1.5 mb-3">
+      ${job.postedAt ? `<span class="px-2 py-1 rounded-lg bg-slate-800/80 text-slate-200 text-xs border border-slate-700/50">📅 ${esc(job.postedAt)}</span>` : ''}
+      ${job.clientLocation ? `<span class="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-300 text-xs border border-slate-700/30">📍 ${esc(job.clientLocation)}</span>` : ''}
+      ${formatJobPrice(job) ? `<span class="px-2 py-1 rounded-lg bg-emerald-900/30 text-emerald-300 text-xs border border-emerald-800/40 font-medium">💵 ${esc(formatJobPrice(job))}</span>` : ''}
+      ${job.budgetType && job.budgetType !== 'unknown' ? `<span class="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-400 text-xs border border-slate-700/30 capitalize">${esc(job.budgetType)}</span>` : ''}
+      ${job.paymentVerified ? `<span class="px-2 py-1 rounded-lg bg-emerald-900/30 text-emerald-400 text-xs border border-emerald-900/40">✓ Verified</span>` : `<span class="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-500 text-xs border border-slate-700/30">Unverified</span>`}
+      ${job.experienceLevel ? `<span class="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-400 text-xs border border-slate-700/30">${esc(job.experienceLevel)}</span>` : ''}
+      ${job.clientRating ? `<span class="px-2 py-1 rounded-lg bg-amber-900/30 text-amber-400 text-xs border border-amber-900/30">★ ${esc(job.clientRating)}</span>` : ''}
+      ${job.totalSpent && job.totalSpent !== 'Unknown' ? `<span class="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-400 text-xs border border-slate-700/30">$${esc(job.totalSpent)} spent</span>` : ''}
+      ${job.proposals ? `<span class="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-400 text-xs border border-slate-700/30">${esc(job.proposals)} proposals</span>` : ''}
+      ${job.quotedTotal && job.quotedTotal !== 'N/A' ? `<span class="px-2 py-1 rounded-lg bg-indigo-900/30 text-indigo-300 text-xs border border-indigo-800/40">Bid ${esc(job.quotedTotal)}</span>` : ''}
+    </div>
+
+    ${skills.length ? `<div class="flex flex-wrap gap-1 mb-3">${skills.map(s => `<span class="px-2 py-0.5 rounded-md bg-indigo-900/30 text-indigo-300 text-xs">${esc(s)}</span>`).join('')}</div>` : ''}
+
+    ${job.clientTrust ? `
+    <div class="text-xs text-slate-400 bg-slate-950/60 rounded-lg px-3 py-2 border border-slate-800 mb-3 leading-relaxed">
+      <span class="text-slate-500 font-semibold uppercase tracking-wide text-[10px]">Trust · </span>${esc(job.clientTrust)}
+    </div>` : ''}
+
+    <div class="flex flex-wrap gap-3 items-center">
       <a href="${esc(job.link)}" target="_blank" class="text-xs text-slate-400 underline">Open on Upwork</a>
-      ${job.proposalDraft ? `<button onclick="toggleSection('proposal-${job.jobUid}', 'prop-lbl-${job.jobUid}')" class="text-xs text-indigo-400"><span id="prop-lbl-${job.jobUid}">Proposal draft ▾</span></button>` : ''}
+      ${job.proposalDraft ? `<button onclick="toggleSection('proposal-${job.jobUid}')" class="text-xs text-indigo-400">Proposal draft ▾</button>` : ''}
       ${buildMilestones(job)}
       <div class="ml-auto flex items-center gap-2">${sentBlock}</div>
     </div>
-    ${job.proposalDraft ? `<div id="proposal-${job.jobUid}" class="proposal-content mt-2 pt-2 border-t border-slate-800"><pre class="text-xs text-slate-300 whitespace-pre-wrap font-sans">${esc(job.proposalDraft)}</pre></div>` : ''}
-    ${job.reasoning ? `<p class="text-xs text-slate-600 mt-2 line-clamp-2">${esc(job.reasoning)}</p>` : ''}
+    ${job.proposalDraft ? `<div id="proposal-${job.jobUid}" class="proposal-content mt-3 pt-3 border-t border-slate-800"><pre class="text-xs text-slate-300 whitespace-pre-wrap font-sans">${esc(job.proposalDraft)}</pre></div>` : ''}
     ${job.notes ? `<p class="text-xs text-slate-600 mt-2">Note: ${esc(job.notes)}</p>` : ''}
   </article>`;
 }
 
-function toggleSection(id, lblId) {
+function toggleSection(id) {
   const el = document.getElementById(id);
   if (el) el.classList.toggle('open');
 }
 
-function renderAllCards() {
+function toggleFilters() {
+  filtersOpen = !filtersOpen;
+  document.getElementById('filters-panel').classList.toggle('hidden', !filtersOpen);
+}
+
+function populateFilterOptions() {
+  const locs = [...new Set(allJobs.map(j => j.clientLocation).filter(Boolean))].sort();
+  const exps = [...new Set(allJobs.map(j => j.experienceLevel).filter(Boolean))].sort();
+  const locSel = document.getElementById('f-location');
+  const expSel = document.getElementById('f-experience');
+  const locVal = locSel.value;
+  const expVal = expSel.value;
+  locSel.innerHTML = '<option value="">Any location</option>' + locs.map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
+  expSel.innerHTML = '<option value="">Any experience</option>' + exps.map(e => `<option value="${esc(e)}">${esc(e)}</option>`).join('');
+  locSel.value = locVal;
+  expSel.value = expVal;
+}
+
+function applyFilters() {
+  const q = document.getElementById('f-search').value.trim().toLowerCase();
+  const minScore = document.getElementById('f-min-score').value;
+  const postedMax = document.getElementById('f-posted').value;
+  const location = document.getElementById('f-location').value;
+  const budget = document.getElementById('f-budget').value;
+  const verified = document.getElementById('f-verified').value;
+  const experience = document.getElementById('f-experience').value;
+  const trust = document.getElementById('f-trust').value;
+  const milestones = document.getElementById('f-milestones').value;
+  const proposal = document.getElementById('f-proposal').value;
+  const sort = document.getElementById('f-sort').value;
+
+  filteredJobs = allJobs.filter(job => {
+    if (currentView === 'sent' && !job.proposalSent) return false;
+    if (currentView === 'unsent' && job.proposalSent) return false;
+    if (minScore && (job.score == null || job.score < Number(minScore))) return false;
+    if (postedMax !== '' && parsePostedDays(job.postedAt) > Number(postedMax)) return false;
+    if (location && job.clientLocation !== location) return false;
+    if (budget && jobBudgetType(job) !== budget) return false;
+    if (verified === 'yes' && !job.paymentVerified) return false;
+    if (verified === 'no' && job.paymentVerified) return false;
+    if (experience && job.experienceLevel !== experience) return false;
+    if (trust && trustLevel(job) !== trust) return false;
+    if (milestones === 'yes' && !(job.milestones && job.milestones.length)) return false;
+    if (milestones === 'no' && job.milestones && job.milestones.length) return false;
+    if (proposal === 'yes' && !job.proposalDraft) return false;
+    if (proposal === 'no' && job.proposalDraft) return false;
+    if (q) {
+      const hay = [job.title, job.clientTrust, job.reasoning, job.clientLocation, job.skills, job.fullDescription]
+        .filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  filteredJobs.sort((a, b) => {
+    switch (sort) {
+      case 'score_asc': return (a.score ?? 0) - (b.score ?? 0);
+      case 'posted_asc': return parsePostedDays(a.postedAt) - parsePostedDays(b.postedAt);
+      case 'posted_desc': return parsePostedDays(b.postedAt) - parsePostedDays(a.postedAt);
+      case 'created_asc': return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+      case 'created_desc': return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      default: return (b.score ?? 0) - (a.score ?? 0);
+    }
+  });
+
+  const total = allJobs.length;
+  const shown = filteredJobs.length;
+  document.getElementById('jobs-count').textContent = shown === total
+    ? `${shown} job(s)`
+    : `${shown} of ${total} job(s)`;
+
   const list = document.getElementById('jobs-list');
   const empty = document.getElementById('jobs-empty');
-  if (!jobCards.length) {
+  if (!shown) {
     list.innerHTML = '';
     empty.classList.remove('hidden');
     return;
   }
   empty.classList.add('hidden');
-  list.innerHTML = jobCards.map(buildCard).join('');
+  list.innerHTML = filteredJobs.map(buildCard).join('');
 }
 
-function queryParams() {
-  const sort = document.getElementById('sort-select').value;
-  const minScore = document.getElementById('min-score').value;
-  const params = new URLSearchParams();
-  if (currentView === 'sent') params.set('sent', 'true');
-  if (sort) params.set('sort', sort);
-  if (minScore) params.set('minScore', minScore);
-  return params.toString() ? '?' + params.toString() : '';
+function clearFilters() {
+  ['f-search','f-min-score','f-posted','f-location','f-budget','f-verified','f-experience','f-trust','f-milestones','f-proposal'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('f-sort').value = 'score_desc';
+  applyFilters();
 }
 
 async function loadJobs() {
-  const r = await fetch('/api/jobs' + queryParams());
-  jobCards = await r.json();
-  document.getElementById('jobs-count').textContent = `${jobCards.length} job(s)`;
-  renderAllCards();
-}
-
-async function reloadJobs() {
-  await loadJobs();
+  const r = await fetch('/api/jobs?limit=500&sort=score_desc');
+  allJobs = await r.json();
+  populateFilterOptions();
+  applyFilters();
 }
 
 async function switchView(view) {
   currentView = view;
-  document.getElementById('tab-all-btn').className = view === 'all'
-    ? 'px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-slate-700'
-    : 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500';
-  document.getElementById('tab-sent-btn').className = view === 'sent'
-    ? 'px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-slate-700'
-    : 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500';
-  await loadJobs();
+  ['all','sent','unsent'].forEach(v => {
+    const btn = document.getElementById(`tab-${v}-btn`);
+    if (!btn) return;
+    btn.className = v === view
+      ? 'px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-slate-700'
+      : 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500';
+  });
+  applyFilters();
 }
 
 function openSentModal(jobUid, title) {

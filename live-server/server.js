@@ -45,7 +45,8 @@ app.get('/api/jobs', (req, res) => {
   const onlyProposalSent = req.query.sent === 'true';
   const sort = req.query.sort || 'score_desc';
   const minScore = req.query.minScore != null && req.query.minScore !== '' ? Number(req.query.minScore) : null;
-  res.json(db.getJobs({ onlyRelevant: true, onlyProposalSent, sort, minScore }));
+  const limit = req.query.limit != null ? Number(req.query.limit) : 500;
+  res.json(db.getJobs({ onlyRelevant: true, onlyProposalSent, sort, minScore, limit }));
 });
 
 app.get('/api/jobs/:jobUid', (req, res) => {
