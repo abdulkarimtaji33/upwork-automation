@@ -49,6 +49,15 @@ app.get('/api/jobs', (req, res) => {
   res.json(db.getJobs({ onlyRelevant: true, onlyProposalSent, sort, minScore, limit }));
 });
 
+app.delete('/api/jobs/all', (req, res) => {
+  try {
+    const result = db.clearAllJobs();
+    res.json({ ok: true, deleted: result.deleted });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 app.get('/api/jobs/:jobUid', (req, res) => {
   const job = db.getJob(req.params.jobUid);
   if (!job) return res.status(404).json({ ok: false, error: 'Job not found' });

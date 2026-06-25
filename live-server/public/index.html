@@ -5,133 +5,415 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Upwork Jobs — Live</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
-    body { font-family: Inter, sans-serif; background: #020617; }
-    .proposal-content { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
-    .proposal-content.open { max-height: 1200px; }
-    .filter-select { font-size: 11px; background: #020617; border: 1px solid #334155; border-radius: 8px; padding: 6px 8px; color: #e2e8f0; }
+    :root {
+      --bg: #050811;
+      --surface: #0d1117;
+      --surface2: #161b22;
+      --border: #21262d;
+      --border2: #30363d;
+      --text: #e6edf3;
+      --muted: #7d8590;
+      --accent: #6366f1;
+      --accent2: #14b8a6;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+
+    /* Slide toggle */
+    .collapse-body { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+    .collapse-body.open { max-height: 2000px; }
+
+    /* Filter inputs */
+    .fi {
+      font-size: 11px;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      padding: 6px 10px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .fi:focus { border-color: var(--accent); }
+    .fi option { background: #1c2128; }
+
+    /* Score ring */
+    .score-ring {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 13px;
+      flex-shrink: 0;
+      border: 2px solid;
+    }
+
+    /* Card */
+    .job-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .job-card::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      border-radius: 14px 0 0 14px;
+    }
+    .job-card:hover {
+      border-color: var(--border2);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+    }
+    .job-card.score-high::before  { background: linear-gradient(180deg, #10b981, #059669); }
+    .job-card.score-mid::before   { background: linear-gradient(180deg, #f59e0b, #d97706); }
+    .job-card.score-low::before   { background: #374151; }
+    .job-card.sent-card { border-color: rgba(16,185,129,0.25); background: rgba(16,185,129,0.03); }
+
+    /* Badge */
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 9px; border-radius: 20px;
+      font-size: 10.5px; font-weight: 500;
+      border: 1px solid;
+      white-space: nowrap;
+    }
+
+    /* Skill pill */
+    .skill-pill {
+      padding: 2px 8px; border-radius: 6px;
+      font-size: 10.5px; font-weight: 500;
+      background: rgba(99,102,241,0.12);
+      color: #a5b4fc;
+      border: 1px solid rgba(99,102,241,0.2);
+    }
+
+    /* Trust banner */
+    .trust-banner {
+      font-size: 11.5px; line-height: 1.6;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 8px 12px;
+      color: #9ca3af;
+    }
+    .trust-banner strong { color: #e2e8f0; font-weight: 600; font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+    /* Tab button */
+    .tab-btn {
+      padding: 6px 16px; border-radius: 8px;
+      font-size: 12px; font-weight: 500;
+      border: 1px solid transparent;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .tab-btn:not(.active) { color: var(--muted); background: transparent; border-color: var(--border2); }
+    .tab-btn:not(.active):hover { color: var(--text); border-color: #6366f180; }
+
+    /* Action button */
+    .action-btn {
+      padding: 6px 14px; border-radius: 8px;
+      font-size: 11.5px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s;
+      border: 1px solid;
+    }
+    .action-btn.primary {
+      background: linear-gradient(135deg, var(--accent2), var(--accent));
+      color: #fff; border-color: transparent;
+    }
+    .action-btn.primary:hover { opacity: 0.88; }
+    .action-btn.ghost { background: transparent; color: var(--muted); border-color: var(--border2); }
+    .action-btn.ghost:hover { color: var(--text); border-color: #6366f180; }
+    .action-btn.danger { background: rgba(239,68,68,0.1); color: #f87171; border-color: rgba(239,68,68,0.3); }
+    .action-btn.danger:hover { background: rgba(239,68,68,0.2); }
+    .action-btn.sent-mark {
+      background: rgba(16,185,129,0.08);
+      color: #34d399;
+      border-color: rgba(16,185,129,0.3);
+    }
+    .action-btn.sent-mark:hover { background: rgba(16,185,129,0.18); }
+
+    /* Stats pill */
+    .stat-chip {
+      display: inline-flex; align-items: center; gap-5px;
+      background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: 10px; padding: 6px 14px;
+      font-size: 12px; color: var(--muted);
+    }
+    .stat-chip strong { color: var(--text); font-weight: 700; }
+
+    /* Pin modal */
+    .pin-input {
+      width: 100%; text-align: center;
+      font-size: 22px; font-weight: 700; letter-spacing: 8px;
+      background: var(--surface2); border: 2px solid var(--border2);
+      border-radius: 12px; padding: 12px;
+      color: var(--text); outline: none;
+      transition: border-color 0.15s;
+    }
+    .pin-input:focus { border-color: var(--accent); }
+    .pin-input.error { border-color: #ef4444; animation: shake 0.3s ease; }
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      75% { transform: translateX(6px); }
+    }
+
+    /* Loading skeleton */
+    .skeleton {
+      background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 8px;
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    /* Overlay */
+    .overlay { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); }
+    .overlay.show { display: flex; }
+
+    /* Modal */
+    .modal {
+      width: 100%; max-width: 440px;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 18px;
+      padding: 28px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+    }
+
+    /* Scroll top indicator */
+    #scroll-top {
+      position: fixed; bottom: 24px; right: 24px; z-index: 40;
+      width: 40px; height: 40px; border-radius: 50%;
+      background: var(--accent); color: #fff;
+      display: none; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 16px;
+      box-shadow: 0 4px 20px rgba(99,102,241,0.4);
+      border: none; transition: opacity 0.2s;
+    }
+    #scroll-top.show { display: flex; }
+    #scroll-top:hover { opacity: 0.85; }
+
+    textarea, input[type="text"] {
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    textarea:focus, input[type="text"]:focus { border-color: var(--accent); }
   </style>
 </head>
-<body class="min-h-screen text-slate-100">
-<header class="border-b border-slate-800 bg-slate-900/90 sticky top-0 z-10 backdrop-blur">
-  <div class="max-w-5xl mx-auto px-4 py-3">
-    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-      <div>
-        <h1 class="font-semibold text-white text-sm">Upwork Jobs</h1>
-        <p class="text-xs text-slate-500">View · filter · mark proposals sent</p>
+<body class="min-h-screen">
+
+<!-- ── Header ─────────────────────────────────────────────────────────────── -->
+<header style="background: rgba(13,17,23,0.95); border-bottom: 1px solid var(--border); backdrop-filter: blur(12px);" class="sticky top-0 z-10">
+  <div class="max-w-5xl mx-auto px-4 pt-4 pb-3">
+
+    <!-- Top row: brand + actions -->
+    <div class="flex items-center justify-between gap-3 mb-4">
+      <div class="flex items-center gap-3">
+        <div style="width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#14b8a6,#6366f1);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🎯</div>
+        <div>
+          <h1 style="font-size:15px;font-weight:700;color:#e6edf3;line-height:1.2;">Upwork Jobs</h1>
+          <p id="header-sub" style="font-size:11px;color:var(--muted);line-height:1.2;">Loading…</p>
+        </div>
       </div>
-      <div class="flex flex-wrap items-center gap-2">
-        <button id="tab-all-btn" onclick="switchView('all')" class="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-slate-700">All</button>
-        <button id="tab-sent-btn" onclick="switchView('sent')" class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500">Sent only</button>
-        <button id="tab-unsent-btn" onclick="switchView('unsent')" class="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500">Not sent</button>
-        <button onclick="toggleFilters()" class="px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-700 text-slate-300 hover:bg-slate-800">Filters ▾</button>
+      <div class="flex items-center gap-2 flex-wrap justify-end">
+        <button onclick="loadJobs()" class="action-btn ghost" title="Refresh">⟳ Refresh</button>
+        <button onclick="toggleFilters()" id="filter-toggle-btn" class="action-btn ghost">⚙ Filters</button>
+        <button onclick="openClearModal()" class="action-btn danger" title="Clear all data">🗑 Clear All</button>
       </div>
     </div>
 
-    <div id="filters-panel" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 pb-1">
-      <input id="f-search" type="search" placeholder="Search title…" oninput="applyFilters()" class="filter-select col-span-2 sm:col-span-1 lg:col-span-2" />
-      <select id="f-sort" onchange="applyFilters()" class="filter-select">
-        <option value="score_desc">Score ↓</option>
-        <option value="score_asc">Score ↑</option>
-        <option value="posted_asc">Posted: newest</option>
-        <option value="posted_desc">Posted: oldest</option>
-        <option value="created_desc">Synced: newest</option>
-        <option value="created_asc">Synced: oldest</option>
-      </select>
-      <select id="f-min-score" onchange="applyFilters()" class="filter-select">
-        <option value="">Any score</option>
-        <option value="50">Score ≥ 50</option>
-        <option value="60">Score ≥ 60</option>
-        <option value="70">Score ≥ 70</option>
-        <option value="80">Score ≥ 80</option>
-        <option value="90">Score ≥ 90</option>
-      </select>
-      <select id="f-posted" onchange="applyFilters()" class="filter-select">
-        <option value="">Any posted date</option>
-        <option value="0">Today / hours</option>
-        <option value="1">Last 24h</option>
-        <option value="3">Last 3 days</option>
-        <option value="7">Last week</option>
-        <option value="30">Last month</option>
-      </select>
-      <select id="f-location" onchange="applyFilters()" class="filter-select">
-        <option value="">Any location</option>
-      </select>
-      <select id="f-budget" onchange="applyFilters()" class="filter-select">
-        <option value="">Any budget type</option>
-        <option value="hourly">Hourly</option>
-        <option value="fixed">Fixed-price</option>
-        <option value="unknown">Unknown</option>
-      </select>
-      <select id="f-verified" onchange="applyFilters()" class="filter-select">
-        <option value="">Payment: any</option>
-        <option value="yes">Verified</option>
-        <option value="no">Unverified</option>
-      </select>
-      <select id="f-experience" onchange="applyFilters()" class="filter-select">
-        <option value="">Any experience</option>
-      </select>
-      <select id="f-trust" onchange="applyFilters()" class="filter-select">
-        <option value="">Any trust</option>
-        <option value="high">High trust</option>
-        <option value="medium">Medium trust</option>
-        <option value="low">Low trust</option>
-      </select>
-      <select id="f-milestones" onchange="applyFilters()" class="filter-select">
-        <option value="">Milestones: any</option>
-        <option value="yes">Has milestones</option>
-        <option value="no">No milestones</option>
-      </select>
-      <select id="f-proposal" onchange="applyFilters()" class="filter-select">
-        <option value="">Proposal draft: any</option>
-        <option value="yes">Has draft</option>
-        <option value="no">No draft</option>
-      </select>
-      <button onclick="clearFilters()" class="filter-select text-slate-400 hover:text-white hover:border-slate-500">Clear</button>
+    <!-- Tabs -->
+    <div class="flex items-center gap-2 mb-3 flex-wrap">
+      <button id="tab-all-btn"    onclick="switchView('all')"    class="tab-btn active">All <span id="cnt-all"    class="ml-1 opacity-60 text-xs"></span></button>
+      <button id="tab-sent-btn"   onclick="switchView('sent')"   class="tab-btn">Sent <span id="cnt-sent"   class="ml-1 opacity-60 text-xs"></span></button>
+      <button id="tab-unsent-btn" onclick="switchView('unsent')" class="tab-btn">Unsent <span id="cnt-unsent" class="ml-1 opacity-60 text-xs"></span></button>
+    </div>
+
+    <!-- Filter panel -->
+    <div id="filters-panel" class="collapse-body open">
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 pb-3">
+        <input id="f-search" type="search" placeholder="🔍 Search title…" oninput="applyFilters()" class="fi col-span-2 lg:col-span-2" />
+        <select id="f-sort" onchange="applyFilters()" class="fi">
+          <option value="score_desc">Score ↓ (best first)</option>
+          <option value="score_asc">Score ↑ (lowest first)</option>
+          <option value="posted_asc">Posted: newest</option>
+          <option value="posted_desc">Posted: oldest</option>
+          <option value="created_desc">Synced: newest</option>
+          <option value="created_asc">Synced: oldest</option>
+        </select>
+        <select id="f-min-score" onchange="applyFilters()" class="fi">
+          <option value="">Any score</option>
+          <option value="50">≥ 50</option>
+          <option value="60">≥ 60</option>
+          <option value="70">≥ 70</option>
+          <option value="80">≥ 80</option>
+          <option value="90">≥ 90</option>
+        </select>
+        <select id="f-posted" onchange="applyFilters()" class="fi">
+          <option value="">Any date</option>
+          <option value="0">Today / hours ago</option>
+          <option value="1">Last 24h</option>
+          <option value="3">Last 3 days</option>
+          <option value="7">Last week</option>
+          <option value="30">Last month</option>
+        </select>
+        <select id="f-location" onchange="applyFilters()" class="fi">
+          <option value="">Any location</option>
+        </select>
+        <select id="f-budget" onchange="applyFilters()" class="fi">
+          <option value="">Any budget</option>
+          <option value="hourly">Hourly</option>
+          <option value="fixed">Fixed-price</option>
+          <option value="unknown">Unknown</option>
+        </select>
+        <select id="f-verified" onchange="applyFilters()" class="fi">
+          <option value="">Payment: any</option>
+          <option value="yes">✓ Verified</option>
+          <option value="no">✗ Unverified</option>
+        </select>
+        <select id="f-experience" onchange="applyFilters()" class="fi">
+          <option value="">Any level</option>
+        </select>
+        <select id="f-trust" onchange="applyFilters()" class="fi">
+          <option value="">Any trust</option>
+          <option value="high">High trust</option>
+          <option value="medium">Medium trust</option>
+          <option value="low">Low trust</option>
+        </select>
+        <select id="f-milestones" onchange="applyFilters()" class="fi">
+          <option value="">Milestones: any</option>
+          <option value="yes">Has milestones</option>
+          <option value="no">No milestones</option>
+        </select>
+        <select id="f-proposal" onchange="applyFilters()" class="fi">
+          <option value="">Draft: any</option>
+          <option value="yes">Has draft</option>
+          <option value="no">No draft</option>
+        </select>
+        <button onclick="clearFilters()" class="fi text-center" style="cursor:pointer;color:var(--muted);">✕ Clear filters</button>
+      </div>
     </div>
   </div>
 </header>
 
+<!-- ── Main ────────────────────────────────────────────────────────────────── -->
 <main class="max-w-5xl mx-auto px-4 py-6">
-  <p id="jobs-count" class="text-xs text-slate-500 mb-4">Loading…</p>
+
+  <!-- Stats row -->
+  <div id="stats-row" class="hidden flex flex-wrap gap-3 mb-6">
+    <div class="stat-chip"><strong id="s-total">0</strong>&nbsp;total</div>
+    <div class="stat-chip" style="color:#34d399;"><strong id="s-sent" style="color:#34d399;">0</strong>&nbsp;sent</div>
+    <div class="stat-chip" style="color:#fb923c;"><strong id="s-unsent" style="color:#fb923c;">0</strong>&nbsp;unsent</div>
+    <div class="stat-chip" style="color:#a5b4fc;"><strong id="s-avg" style="color:#a5b4fc;">—</strong>&nbsp;avg score</div>
+    <div class="stat-chip" style="color:#f59e0b;"><strong id="s-high" style="color:#f59e0b;">0</strong>&nbsp;score ≥ 80</div>
+  </div>
+
+  <p id="jobs-count" class="text-xs mb-5" style="color:var(--muted);">Loading…</p>
   <div id="jobs-list" class="space-y-4"></div>
-  <div id="jobs-empty" class="hidden text-center py-16 text-slate-500 text-sm">No jobs match your filters.</div>
+  <div id="jobs-empty" class="hidden text-center py-20">
+    <div style="font-size:40px;margin-bottom:12px;">🔍</div>
+    <p style="color:var(--muted);font-size:14px;">No jobs match your filters.</p>
+    <button onclick="clearFilters()" class="action-btn ghost mt-4" style="font-size:12px;">Clear filters</button>
+  </div>
+  <div id="jobs-loading" class="space-y-4">
+    <div class="skeleton" style="height:140px;"></div>
+    <div class="skeleton" style="height:120px;"></div>
+    <div class="skeleton" style="height:160px;"></div>
+    <div class="skeleton" style="height:130px;"></div>
+  </div>
 </main>
 
-<div id="sent-overlay" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/75">
-  <div class="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6">
-    <h3 class="font-semibold text-white text-sm mb-1">Mark proposal sent</h3>
-    <p id="sent-modal-title" class="text-xs text-slate-500 mb-4 truncate"></p>
-    <label class="text-xs text-slate-500 block mb-1">Notes (optional)</label>
-    <textarea id="sent-notes" rows="2" class="w-full mb-3 rounded-lg bg-slate-950 border border-slate-700 text-sm text-white p-2"></textarea>
-    <label class="text-xs text-slate-500 block mb-1">Evidence (optional)</label>
-    <input id="evidence-input" type="file" accept="image/*,.pdf" class="w-full text-xs text-slate-400 mb-4" />
-    <div class="flex gap-2">
-      <button onclick="closeSentModal()" class="flex-1 py-2 rounded-lg bg-slate-800 text-sm text-slate-300">Cancel</button>
-      <button id="sent-confirm-btn" onclick="confirmProposalSent()" class="flex-1 py-2 rounded-lg text-sm font-semibold text-white" style="background:linear-gradient(135deg,#14b8a6,#6366f1)">Confirm</button>
+<!-- ── Scroll-top button ──────────────────────────────────────────────────── -->
+<button id="scroll-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Back to top">↑</button>
+
+<!-- ── Proposal Sent Modal ─────────────────────────────────────────────────── -->
+<div id="sent-overlay" class="overlay">
+  <div class="modal">
+    <div class="flex items-center gap-3 mb-5">
+      <div style="width:36px;height:36px;border-radius:10px;background:rgba(16,185,129,0.15);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;border:1px solid rgba(16,185,129,0.3);">✉</div>
+      <div>
+        <h3 style="font-weight:700;font-size:14px;color:#e6edf3;">Mark proposal sent</h3>
+        <p id="sent-modal-title" style="font-size:11px;color:var(--muted);margin-top:2px;max-width:330px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></p>
+      </div>
+    </div>
+    <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">Notes <span style="opacity:0.5;">(optional)</span></label>
+    <textarea id="sent-notes" rows="3" class="w-full mb-4 p-3 text-sm" style="width:100%;resize:vertical;"></textarea>
+    <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">Evidence screenshot / PDF <span style="opacity:0.5;">(optional)</span></label>
+    <input id="evidence-input" type="file" accept="image/*,.pdf" class="w-full text-xs mb-6" style="color:var(--muted);" />
+    <div class="flex gap-3">
+      <button onclick="closeSentModal()" class="action-btn ghost flex-1" style="padding:10px;">Cancel</button>
+      <button id="sent-confirm-btn" onclick="confirmProposalSent()" class="action-btn primary flex-1" style="padding:10px;">Confirm sent</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Clear All Modal ─────────────────────────────────────────────────────── -->
+<div id="clear-overlay" class="overlay">
+  <div class="modal" style="max-width:380px;">
+    <div class="text-center mb-6">
+      <div style="font-size:44px;margin-bottom:10px;">⚠️</div>
+      <h3 style="font-weight:800;font-size:17px;color:#e6edf3;margin-bottom:6px;">Clear all jobs?</h3>
+      <p style="font-size:12.5px;color:var(--muted);line-height:1.6;">This will permanently delete all jobs from the database. Enter the PIN to confirm.</p>
+    </div>
+    <input id="clear-pin" type="password" maxlength="6" class="pin-input mb-2" placeholder="• • •" oninput="onPinInput()" />
+    <p id="clear-error" class="text-center mb-5" style="font-size:11.5px;color:#f87171;min-height:18px;"></p>
+    <div class="flex gap-3">
+      <button onclick="closeClearModal()" class="action-btn ghost flex-1" style="padding:11px;">Cancel</button>
+      <button id="clear-confirm-btn" onclick="confirmClearAll()" class="action-btn danger flex-1" style="padding:11px;">Delete all</button>
     </div>
   </div>
 </div>
 
 <script>
+'use strict';
+
 let allJobs = [];
 let filteredJobs = [];
 let currentView = 'all';
 let sentModalJobUid = null;
 let filtersOpen = true;
 
+// ── Escape helpers ──────────────────────────────────────────────────────────
 function esc(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function escJs(s) {
-  return String(s || '').replace(/\\/g,'\\\\').replace(/`/g,'\\`');
+  return String(s ?? '').replace(/\\/g,'\\\\').replace(/`/g,'\\`').replace(/"/g,'\\"');
 }
 
+// ── Helpers ─────────────────────────────────────────────────────────────────
 function scoreColor(s) {
-  if (s >= 80) return 'text-emerald-400';
-  if (s >= 60) return 'text-amber-400';
-  return 'text-slate-400';
+  if (s >= 80) return '#10b981';
+  if (s >= 60) return '#f59e0b';
+  return '#6b7280';
+}
+function scoreBg(s) {
+  if (s >= 80) return 'rgba(16,185,129,0.12)';
+  if (s >= 60) return 'rgba(245,158,11,0.12)';
+  return 'rgba(107,114,128,0.1)';
+}
+function scoreClass(s) {
+  if (s >= 80) return 'score-high';
+  if (s >= 60) return 'score-mid';
+  return 'score-low';
 }
 
 function formatJobPrice(job) {
@@ -144,15 +426,12 @@ function formatJobPrice(job) {
 function parsePostedDays(s) {
   if (!s) return 9999;
   const t = String(s).toLowerCase();
-  if (t.includes('minute') || t.includes('hour') || t.includes('just now')) return 0;
+  if (/minute|hour|just now/.test(t)) return 0;
   if (t.includes('yesterday')) return 1;
-  const d = t.match(/(\d+)\s*day/);
-  if (d) return Number(d[1]);
-  const w = t.match(/(\d+)\s*week/);
-  if (w) return Number(w[1]) * 7;
+  const d = t.match(/(\d+)\s*day/);   if (d) return Number(d[1]);
+  const w = t.match(/(\d+)\s*week/);  if (w) return Number(w[1]) * 7;
   if (t.includes('week')) return 7;
-  const mo = t.match(/(\d+)\s*month/);
-  if (mo) return Number(mo[1]) * 30;
+  const mo = t.match(/(\d+)\s*month/); if (mo) return Number(mo[1]) * 30;
   if (t.includes('month')) return 30;
   return 9999;
 }
@@ -173,85 +452,134 @@ function jobBudgetType(job) {
   return 'unknown';
 }
 
+function relativeTime(isoStr) {
+  if (!isoStr) return '';
+  const diff = (Date.now() - new Date(isoStr).getTime()) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+  return `${Math.floor(diff/86400)}d ago`;
+}
+
+// ── Build milestones section ─────────────────────────────────────────────────
 function buildMilestones(job) {
-  if (!job.milestones || !job.milestones.length) return '';
+  if (!job.milestones?.length) return '';
   const items = job.milestones.map((m, i) => `
-    <li class="text-xs text-slate-300 py-2 border-b border-slate-800 last:border-0">
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="text-indigo-400 font-medium">${i + 1}. ${esc(m.title)}</span>
-        <span class="text-slate-500">${esc(m.duration || '')}</span>
-        ${m.quotedPrice ? `<span class="text-emerald-400 font-semibold">${esc(m.quotedPrice)}</span>` : ''}
-      </div>
-      <p class="text-slate-500 mt-0.5">${esc(m.description || '')}</p>
+    <li style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;flex-wrap:wrap;gap:6px;align-items:baseline;" class="last:border-0">
+      <span style="color:#818cf8;font-weight:600;font-size:11.5px;">${i+1}. ${esc(m.title)}</span>
+      ${m.duration ? `<span style="color:var(--muted);font-size:11px;">${esc(m.duration)}</span>` : ''}
+      ${m.quotedPrice ? `<span style="color:#34d399;font-weight:700;font-size:11.5px;">${esc(m.quotedPrice)}</span>` : ''}
+      ${m.description ? `<p style="width:100%;color:#6b7280;font-size:11px;margin:2px 0 0;">${esc(m.description)}</p>` : ''}
     </li>`).join('');
   const total = job.quotedTotal && job.quotedTotal !== 'N/A'
-    ? `<p class="text-xs text-indigo-300 mt-2 font-medium">Recommended total: ${esc(job.quotedTotal)}</p>` : '';
+    ? `<div style="margin-top:10px;padding:8px 12px;background:rgba(99,102,241,0.08);border-radius:8px;border:1px solid rgba(99,102,241,0.2);font-size:12px;color:#a5b4fc;font-weight:600;">Total bid: ${esc(job.quotedTotal)}</div>` : '';
   return `
-    <button onclick="toggleSection('ms-${job.jobUid}')" class="text-xs text-indigo-400 hover:text-indigo-300">
-      Milestones (${job.milestones.length}) ▾
+    <button onclick="toggleSection('ms-${esc(job.jobUid)}')" style="font-size:11.5px;color:#818cf8;background:rgba(99,102,241,0.08);padding:4px 10px;border-radius:20px;border:1px solid rgba(99,102,241,0.2);cursor:pointer;">
+      📋 ${job.milestones.length} milestone${job.milestones.length > 1 ? 's' : ''} ▾
     </button>
-    <div id="ms-${job.jobUid}" class="proposal-content mt-2">
-      <ol class="rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-1">${items}</ol>
+    <div id="ms-${esc(job.jobUid)}" class="collapse-body mt-3">
+      <ol style="list-style:none;margin:0;padding:0 4px;">${items}</ol>
       ${total}
     </div>`;
 }
 
+// ── Build card ───────────────────────────────────────────────────────────────
 function buildCard(job) {
-  const score = job.score != null ? Math.round(job.score) : '—';
-  const skills = (job.skills || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 5);
+  const score    = job.score != null ? Math.round(job.score) : null;
+  const scoreNum = score ?? 0;
+  const skills   = (job.skills || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 6);
+  const price    = formatJobPrice(job);
+  const syncedAgo = relativeTime(job.createdAt);
+  const tl       = trustLevel(job);
+
+  const trustColorMap = { high:'#10b981', medium:'#f59e0b', low:'#ef4444' };
+  const trustBgMap    = { high:'rgba(16,185,129,0.08)', medium:'rgba(245,158,11,0.08)', low:'rgba(239,68,68,0.08)' };
+  const trustBorderMap= { high:'rgba(16,185,129,0.2)', medium:'rgba(245,158,11,0.2)', low:'rgba(239,68,68,0.2)' };
+  const trustDot = tl ? `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${trustColorMap[tl]};margin-right:5px;flex-shrink:0;"></span>` : '';
+
   const sentBlock = job.proposalSent
-    ? `<span class="text-xs text-emerald-400">Sent ${job.proposalSentAt ? new Date(job.proposalSentAt).toLocaleDateString() : ''}</span>
-       ${job.evidencePath ? `<a href="${esc(job.evidencePath)}" target="_blank" class="text-xs text-slate-400 underline">Evidence</a>` : ''}
-       <button onclick="openSentModal('${job.jobUid}', \`${escJs(job.title)}\`)" class="text-xs text-slate-500 hover:text-white">Edit</button>`
-    : `<button onclick="openSentModal('${job.jobUid}', \`${escJs(job.title)}\`)" class="px-3 py-1.5 rounded-lg text-xs font-medium border border-emerald-800/50 text-emerald-400 hover:bg-emerald-900/30">Mark sent</button>`;
+    ? `<div class="flex items-center gap-2 flex-wrap">
+        <span style="font-size:11.5px;color:#34d399;font-weight:600;">✓ Sent${job.proposalSentAt ? ' · ' + new Date(job.proposalSentAt).toLocaleDateString() : ''}</span>
+        ${job.evidencePath ? `<a href="${esc(job.evidencePath)}" target="_blank" style="font-size:11px;color:var(--muted);text-decoration:underline;">Evidence</a>` : ''}
+        <button onclick="openSentModal('${esc(job.jobUid)}', \`${escJs(job.title)}\`)" style="font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;text-decoration:underline;">Edit</button>
+      </div>`
+    : `<button onclick="openSentModal('${esc(job.jobUid)}', \`${escJs(job.title)}\`)" class="action-btn sent-mark">Mark sent</button>`;
 
-  return `<article id="card-${job.jobUid}" class="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
-    <div class="flex justify-between gap-2 mb-3">
-      <a href="${esc(job.link)}" target="_blank" class="font-medium text-white text-sm hover:text-indigo-300 leading-snug">${esc(job.title)}</a>
-      <span class="text-sm font-bold tabular-nums flex-shrink-0 ${scoreColor(Number(job.score))}">${score}</span>
+  return `<article id="card-${esc(job.jobUid)}" class="job-card ${scoreClass(scoreNum)} ${job.proposalSent ? 'sent-card' : ''}">
+    <!-- Title row -->
+    <div class="flex gap-3 mb-3" style="align-items:flex-start;">
+      <div class="score-ring" style="color:${scoreColor(scoreNum)};border-color:${scoreColor(scoreNum)};background:${scoreBg(scoreNum)};">
+        ${score !== null ? score : '—'}
+      </div>
+      <div style="flex:1;min-width:0;">
+        <a href="${esc(job.link)}" target="_blank" style="font-weight:600;font-size:14px;color:#e6edf3;line-height:1.4;display:block;text-decoration:none;transition:color 0.15s;" onmouseover="this.style.color='#a5b4fc'" onmouseout="this.style.color='#e6edf3'">${esc(job.title)}</a>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:5px;align-items:center;">
+          ${syncedAgo ? `<span style="font-size:10.5px;color:var(--muted);">synced ${syncedAgo}</span>` : ''}
+          ${job.proposals ? `<span style="font-size:10.5px;color:var(--muted);">· ${esc(job.proposals)} proposals</span>` : ''}
+        </div>
+      </div>
     </div>
 
-    <div class="flex flex-wrap gap-1.5 mb-3">
-      ${job.postedAt ? `<span class="px-2 py-1 rounded-lg bg-slate-800/80 text-slate-200 text-xs border border-slate-700/50">📅 ${esc(job.postedAt)}</span>` : ''}
-      ${job.clientLocation ? `<span class="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-300 text-xs border border-slate-700/30">📍 ${esc(job.clientLocation)}</span>` : ''}
-      ${formatJobPrice(job) ? `<span class="px-2 py-1 rounded-lg bg-emerald-900/30 text-emerald-300 text-xs border border-emerald-800/40 font-medium">💵 ${esc(formatJobPrice(job))}</span>` : ''}
-      ${job.budgetType && job.budgetType !== 'unknown' ? `<span class="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-400 text-xs border border-slate-700/30 capitalize">${esc(job.budgetType)}</span>` : ''}
-      ${job.paymentVerified ? `<span class="px-2 py-1 rounded-lg bg-emerald-900/30 text-emerald-400 text-xs border border-emerald-900/40">✓ Verified</span>` : `<span class="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-500 text-xs border border-slate-700/30">Unverified</span>`}
-      ${job.experienceLevel ? `<span class="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-400 text-xs border border-slate-700/30">${esc(job.experienceLevel)}</span>` : ''}
-      ${job.clientRating ? `<span class="px-2 py-1 rounded-lg bg-amber-900/30 text-amber-400 text-xs border border-amber-900/30">★ ${esc(job.clientRating)}</span>` : ''}
-      ${job.totalSpent && job.totalSpent !== 'Unknown' ? `<span class="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-400 text-xs border border-slate-700/30">$${esc(job.totalSpent)} spent</span>` : ''}
-      ${job.proposals ? `<span class="px-2 py-1 rounded-lg bg-slate-800/60 text-slate-400 text-xs border border-slate-700/30">${esc(job.proposals)} proposals</span>` : ''}
-      ${job.quotedTotal && job.quotedTotal !== 'N/A' ? `<span class="px-2 py-1 rounded-lg bg-indigo-900/30 text-indigo-300 text-xs border border-indigo-800/40">Bid ${esc(job.quotedTotal)}</span>` : ''}
+    <!-- Badges row -->
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
+      ${job.postedAt ? `<span class="badge" style="color:#c4b5fd;border-color:rgba(196,181,253,0.2);background:rgba(196,181,253,0.06);">🕐 ${esc(job.postedAt)}</span>` : ''}
+      ${job.clientLocation ? `<span class="badge" style="color:#94a3b8;border-color:rgba(148,163,184,0.2);background:rgba(148,163,184,0.05);">📍 ${esc(job.clientLocation)}</span>` : ''}
+      ${price ? `<span class="badge" style="color:#34d399;border-color:rgba(52,211,153,0.25);background:rgba(52,211,153,0.07);font-weight:700;">💰 ${esc(price)}</span>` : ''}
+      ${job.budgetType && job.budgetType !== 'unknown' ? `<span class="badge" style="color:#94a3b8;border-color:rgba(148,163,184,0.15);background:rgba(148,163,184,0.04);text-transform:capitalize;">${esc(job.budgetType)}</span>` : ''}
+      ${job.paymentVerified
+        ? `<span class="badge" style="color:#10b981;border-color:rgba(16,185,129,0.25);background:rgba(16,185,129,0.07);">✓ Verified</span>`
+        : `<span class="badge" style="color:#6b7280;border-color:rgba(107,114,128,0.2);background:rgba(107,114,128,0.04);">Unverified</span>`}
+      ${job.experienceLevel ? `<span class="badge" style="color:#94a3b8;border-color:rgba(148,163,184,0.15);background:rgba(148,163,184,0.04);">${esc(job.experienceLevel)}</span>` : ''}
+      ${job.clientRating ? `<span class="badge" style="color:#fbbf24;border-color:rgba(251,191,36,0.25);background:rgba(251,191,36,0.07);">★ ${esc(job.clientRating)}</span>` : ''}
+      ${job.totalSpent && job.totalSpent !== 'Unknown' ? `<span class="badge" style="color:#94a3b8;border-color:rgba(148,163,184,0.15);background:rgba(148,163,184,0.04);">$${esc(job.totalSpent)} spent</span>` : ''}
+      ${job.quotedTotal && job.quotedTotal !== 'N/A' ? `<span class="badge" style="color:#a5b4fc;border-color:rgba(165,180,252,0.25);background:rgba(165,180,252,0.08);font-weight:700;">Bid ${esc(job.quotedTotal)}</span>` : ''}
     </div>
 
-    ${skills.length ? `<div class="flex flex-wrap gap-1 mb-3">${skills.map(s => `<span class="px-2 py-0.5 rounded-md bg-indigo-900/30 text-indigo-300 text-xs">${esc(s)}</span>`).join('')}</div>` : ''}
+    <!-- Skills -->
+    ${skills.length ? `<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px;">${skills.map(s => `<span class="skill-pill">${esc(s)}</span>`).join('')}</div>` : ''}
 
+    <!-- Trust -->
     ${job.clientTrust ? `
-    <div class="text-xs text-slate-400 bg-slate-950/60 rounded-lg px-3 py-2 border border-slate-800 mb-3 leading-relaxed">
-      <span class="text-slate-500 font-semibold uppercase tracking-wide text-[10px]">Trust · </span>${esc(job.clientTrust)}
+    <div class="trust-banner mb-3" style="${tl ? `background:${trustBgMap[tl]};border-color:${trustBorderMap[tl]};` : ''}">
+      ${trustDot}<strong>Client Trust</strong> &nbsp;${esc(job.clientTrust)}
     </div>` : ''}
 
-    <div class="flex flex-wrap gap-3 items-center">
-      <a href="${esc(job.link)}" target="_blank" class="text-xs text-slate-400 underline">Open on Upwork</a>
-      ${job.proposalDraft ? `<button onclick="toggleSection('proposal-${job.jobUid}')" class="text-xs text-indigo-400">Proposal draft ▾</button>` : ''}
+    <!-- Actions row -->
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:4px;">
+      <a href="${esc(job.link)}" target="_blank" style="font-size:11.5px;color:var(--muted);text-decoration:underline;">↗ Upwork</a>
+      ${job.proposalDraft ? `<button onclick="toggleSection('proposal-${esc(job.jobUid)}')" style="font-size:11.5px;color:#818cf8;background:rgba(99,102,241,0.08);padding:4px 10px;border-radius:20px;border:1px solid rgba(99,102,241,0.2);cursor:pointer;">📝 Draft ▾</button>` : ''}
       ${buildMilestones(job)}
-      <div class="ml-auto flex items-center gap-2">${sentBlock}</div>
+      <div style="margin-left:auto;">${sentBlock}</div>
     </div>
-    ${job.proposalDraft ? `<div id="proposal-${job.jobUid}" class="proposal-content mt-3 pt-3 border-t border-slate-800"><pre class="text-xs text-slate-300 whitespace-pre-wrap font-sans">${esc(job.proposalDraft)}</pre></div>` : ''}
-    ${job.notes ? `<p class="text-xs text-slate-600 mt-2">Note: ${esc(job.notes)}</p>` : ''}
+
+    <!-- Proposal draft (collapsed) -->
+    ${job.proposalDraft ? `
+    <div id="proposal-${esc(job.jobUid)}" class="collapse-body">
+      <div style="margin-top:14px;padding:14px;background:rgba(255,255,255,0.02);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+        <pre style="font-size:11.5px;color:#9ca3af;white-space:pre-wrap;font-family:inherit;margin:0;">${esc(job.proposalDraft)}</pre>
+      </div>
+    </div>` : ''}
+
+    <!-- Notes -->
+    ${job.notes ? `<p style="font-size:11px;color:#6b7280;margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.05);">📌 ${esc(job.notes)}</p>` : ''}
   </article>`;
 }
 
+// ── Toggle collapse ──────────────────────────────────────────────────────────
 function toggleSection(id) {
   const el = document.getElementById(id);
   if (el) el.classList.toggle('open');
 }
 
+// ── Filters toggle ───────────────────────────────────────────────────────────
 function toggleFilters() {
   filtersOpen = !filtersOpen;
-  document.getElementById('filters-panel').classList.toggle('hidden', !filtersOpen);
+  const panel = document.getElementById('filters-panel');
+  panel.classList.toggle('open', filtersOpen);
+  document.getElementById('filter-toggle-btn').textContent = filtersOpen ? '⚙ Filters' : '⚙ Filters ▸';
 }
 
+// ── Populate dynamic filter options ─────────────────────────────────────────
 function populateFilterOptions() {
   const locs = [...new Set(allJobs.map(j => j.clientLocation).filter(Boolean))].sort();
   const exps = [...new Set(allJobs.map(j => j.experienceLevel).filter(Boolean))].sort();
@@ -260,39 +588,40 @@ function populateFilterOptions() {
   const locVal = locSel.value;
   const expVal = expSel.value;
   locSel.innerHTML = '<option value="">Any location</option>' + locs.map(l => `<option value="${esc(l)}">${esc(l)}</option>`).join('');
-  expSel.innerHTML = '<option value="">Any experience</option>' + exps.map(e => `<option value="${esc(e)}">${esc(e)}</option>`).join('');
+  expSel.innerHTML = '<option value="">Any level</option>' + exps.map(e => `<option value="${esc(e)}">${esc(e)}</option>`).join('');
   locSel.value = locVal;
   expSel.value = expVal;
 }
 
+// ── Apply filters & sort ─────────────────────────────────────────────────────
 function applyFilters() {
-  const q = document.getElementById('f-search').value.trim().toLowerCase();
-  const minScore = document.getElementById('f-min-score').value;
-  const postedMax = document.getElementById('f-posted').value;
-  const location = document.getElementById('f-location').value;
-  const budget = document.getElementById('f-budget').value;
-  const verified = document.getElementById('f-verified').value;
+  const q          = document.getElementById('f-search').value.trim().toLowerCase();
+  const minScore   = document.getElementById('f-min-score').value;
+  const postedMax  = document.getElementById('f-posted').value;
+  const location   = document.getElementById('f-location').value;
+  const budget     = document.getElementById('f-budget').value;
+  const verified   = document.getElementById('f-verified').value;
   const experience = document.getElementById('f-experience').value;
-  const trust = document.getElementById('f-trust').value;
+  const trust      = document.getElementById('f-trust').value;
   const milestones = document.getElementById('f-milestones').value;
-  const proposal = document.getElementById('f-proposal').value;
-  const sort = document.getElementById('f-sort').value;
+  const proposal   = document.getElementById('f-proposal').value;
+  const sort       = document.getElementById('f-sort').value;
 
   filteredJobs = allJobs.filter(job => {
-    if (currentView === 'sent' && !job.proposalSent) return false;
-    if (currentView === 'unsent' && job.proposalSent) return false;
+    if (currentView === 'sent'   && !job.proposalSent) return false;
+    if (currentView === 'unsent' &&  job.proposalSent) return false;
     if (minScore && (job.score == null || job.score < Number(minScore))) return false;
     if (postedMax !== '' && parsePostedDays(job.postedAt) > Number(postedMax)) return false;
-    if (location && job.clientLocation !== location) return false;
-    if (budget && jobBudgetType(job) !== budget) return false;
+    if (location   && job.clientLocation !== location) return false;
+    if (budget     && jobBudgetType(job) !== budget) return false;
     if (verified === 'yes' && !job.paymentVerified) return false;
-    if (verified === 'no' && job.paymentVerified) return false;
+    if (verified === 'no'  &&  job.paymentVerified) return false;
     if (experience && job.experienceLevel !== experience) return false;
-    if (trust && trustLevel(job) !== trust) return false;
-    if (milestones === 'yes' && !(job.milestones && job.milestones.length)) return false;
-    if (milestones === 'no' && job.milestones && job.milestones.length) return false;
+    if (trust      && trustLevel(job) !== trust) return false;
+    if (milestones === 'yes' && !(job.milestones?.length)) return false;
+    if (milestones === 'no'  &&   job.milestones?.length)  return false;
     if (proposal === 'yes' && !job.proposalDraft) return false;
-    if (proposal === 'no' && job.proposalDraft) return false;
+    if (proposal === 'no'  &&  job.proposalDraft) return false;
     if (q) {
       const hay = [job.title, job.clientTrust, job.reasoning, job.clientLocation, job.skills, job.fullDescription]
         .filter(Boolean).join(' ').toLowerCase();
@@ -303,32 +632,35 @@ function applyFilters() {
 
   filteredJobs.sort((a, b) => {
     switch (sort) {
-      case 'score_asc': return (a.score ?? 0) - (b.score ?? 0);
-      case 'posted_asc': return parsePostedDays(a.postedAt) - parsePostedDays(b.postedAt);
-      case 'posted_desc': return parsePostedDays(b.postedAt) - parsePostedDays(a.postedAt);
-      case 'created_asc': return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+      case 'score_asc':    return (a.score ?? 0) - (b.score ?? 0);
+      case 'posted_asc':   return parsePostedDays(a.postedAt) - parsePostedDays(b.postedAt);
+      case 'posted_desc':  return parsePostedDays(b.postedAt) - parsePostedDays(a.postedAt);
+      case 'created_asc':  return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
       case 'created_desc': return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-      default: return (b.score ?? 0) - (a.score ?? 0);
+      default:             return (b.score ?? 0) - (a.score ?? 0);
     }
   });
 
-  const total = allJobs.length;
-  const shown = filteredJobs.length;
-  document.getElementById('jobs-count').textContent = shown === total
-    ? `${shown} job(s)`
-    : `${shown} of ${total} job(s)`;
+  const total  = allJobs.length;
+  const shown  = filteredJobs.length;
+  const isFiltered = shown !== total;
 
-  const list = document.getElementById('jobs-list');
+  document.getElementById('jobs-count').textContent = isFiltered
+    ? `Showing ${shown} of ${total} job${total !== 1 ? 's' : ''}`
+    : `${total} job${total !== 1 ? 's' : ''}`;
+
+  const list  = document.getElementById('jobs-list');
   const empty = document.getElementById('jobs-empty');
   if (!shown) {
     list.innerHTML = '';
     empty.classList.remove('hidden');
-    return;
+  } else {
+    empty.classList.add('hidden');
+    list.innerHTML = filteredJobs.map(buildCard).join('');
   }
-  empty.classList.add('hidden');
-  list.innerHTML = filteredJobs.map(buildCard).join('');
 }
 
+// ── Clear filters ────────────────────────────────────────────────────────────
 function clearFilters() {
   ['f-search','f-min-score','f-posted','f-location','f-budget','f-verified','f-experience','f-trust','f-milestones','f-proposal'].forEach(id => {
     document.getElementById(id).value = '';
@@ -337,41 +669,73 @@ function clearFilters() {
   applyFilters();
 }
 
-async function loadJobs() {
-  const r = await fetch('/api/jobs?limit=500&sort=score_desc');
-  allJobs = await r.json();
-  populateFilterOptions();
-  applyFilters();
+// ── Update stats bar ─────────────────────────────────────────────────────────
+function updateStats() {
+  if (!allJobs.length) return;
+  const sent   = allJobs.filter(j => j.proposalSent).length;
+  const unsent = allJobs.length - sent;
+  const scores = allJobs.map(j => j.score).filter(s => s != null);
+  const avg    = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null;
+  const high   = allJobs.filter(j => j.score >= 80).length;
+
+  document.getElementById('s-total').textContent  = allJobs.length;
+  document.getElementById('s-sent').textContent   = sent;
+  document.getElementById('s-unsent').textContent = unsent;
+  document.getElementById('s-avg').textContent    = avg !== null ? avg : '—';
+  document.getElementById('s-high').textContent   = high;
+  document.getElementById('stats-row').classList.remove('hidden');
+
+  // Tab counts
+  document.getElementById('cnt-all').textContent    = allJobs.length;
+  document.getElementById('cnt-sent').textContent   = sent;
+  document.getElementById('cnt-unsent').textContent = unsent;
+
+  // Header sub
+  document.getElementById('header-sub').textContent = `${allJobs.length} jobs · ${sent} sent`;
 }
 
-async function switchView(view) {
+// ── Load jobs ────────────────────────────────────────────────────────────────
+async function loadJobs() {
+  document.getElementById('jobs-loading').style.display = 'block';
+  document.getElementById('jobs-list').innerHTML = '';
+  document.getElementById('jobs-empty').classList.add('hidden');
+  try {
+    const r = await fetch('/api/jobs?limit=500&sort=score_desc');
+    allJobs = await r.json();
+    populateFilterOptions();
+    updateStats();
+    applyFilters();
+  } catch (e) {
+    document.getElementById('jobs-count').textContent = 'Failed to load. Retrying…';
+    setTimeout(loadJobs, 3000);
+  } finally {
+    document.getElementById('jobs-loading').style.display = 'none';
+  }
+}
+
+// ── Switch view ──────────────────────────────────────────────────────────────
+function switchView(view) {
   currentView = view;
   ['all','sent','unsent'].forEach(v => {
     const btn = document.getElementById(`tab-${v}-btn`);
     if (!btn) return;
-    btn.className = v === view
-      ? 'px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-slate-700'
-      : 'px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500';
+    btn.classList.toggle('active', v === view);
   });
   applyFilters();
 }
 
+// ── Proposal sent modal ──────────────────────────────────────────────────────
 function openSentModal(jobUid, title) {
   sentModalJobUid = jobUid;
   document.getElementById('sent-modal-title').textContent = title;
   document.getElementById('sent-notes').value = '';
   document.getElementById('evidence-input').value = '';
-  const o = document.getElementById('sent-overlay');
-  o.classList.remove('hidden');
-  o.classList.add('flex');
+  document.getElementById('sent-overlay').classList.add('show');
 }
-
 function closeSentModal() {
-  document.getElementById('sent-overlay').classList.add('hidden');
-  document.getElementById('sent-overlay').classList.remove('flex');
+  document.getElementById('sent-overlay').classList.remove('show');
   sentModalJobUid = null;
 }
-
 async function confirmProposalSent() {
   if (!sentModalJobUid) return;
   const btn = document.getElementById('sent-confirm-btn');
@@ -393,10 +757,75 @@ async function confirmProposalSent() {
     alert(e.message);
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Confirm';
+    btn.textContent = 'Confirm sent';
   }
 }
 
+// ── Clear All modal ──────────────────────────────────────────────────────────
+function openClearModal() {
+  document.getElementById('clear-pin').value = '';
+  document.getElementById('clear-error').textContent = '';
+  document.getElementById('clear-pin').classList.remove('error');
+  document.getElementById('clear-overlay').classList.add('show');
+  setTimeout(() => document.getElementById('clear-pin').focus(), 100);
+}
+function closeClearModal() {
+  document.getElementById('clear-overlay').classList.remove('show');
+}
+function onPinInput() {
+  document.getElementById('clear-pin').classList.remove('error');
+  document.getElementById('clear-error').textContent = '';
+}
+async function confirmClearAll() {
+  const pin = document.getElementById('clear-pin').value.trim();
+  if (pin !== '555') {
+    document.getElementById('clear-pin').classList.add('error');
+    document.getElementById('clear-error').textContent = 'Incorrect PIN. Try again.';
+    document.getElementById('clear-pin').value = '';
+    return;
+  }
+  const btn = document.getElementById('clear-confirm-btn');
+  btn.disabled = true;
+  btn.textContent = 'Deleting…';
+  try {
+    const r = await fetch('/api/jobs/all', { method: 'DELETE' });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Server error');
+    closeClearModal();
+    allJobs = [];
+    filteredJobs = [];
+    updateStats();
+    applyFilters();
+    document.getElementById('jobs-count').textContent = 'All jobs cleared.';
+    document.getElementById('header-sub').textContent = '0 jobs · 0 sent';
+  } catch (e) {
+    document.getElementById('clear-error').textContent = e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Delete all';
+  }
+}
+
+// ── Close modals on backdrop click ───────────────────────────────────────────
+document.getElementById('sent-overlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeSentModal();
+});
+document.getElementById('clear-overlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeClearModal();
+});
+
+// ── Keyboard shortcuts ───────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeSentModal(); closeClearModal(); }
+  if (e.key === 'Enter' && document.getElementById('clear-overlay').classList.contains('show')) confirmClearAll();
+});
+
+// ── Scroll-top button ─────────────────────────────────────────────────────────
+window.addEventListener('scroll', () => {
+  document.getElementById('scroll-top').classList.toggle('show', window.scrollY > 400);
+}, { passive: true });
+
+// ── Init ─────────────────────────────────────────────────────────────────────
 loadJobs();
 </script>
 </body>

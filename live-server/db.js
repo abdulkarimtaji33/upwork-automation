@@ -313,4 +313,10 @@ function getStats() {
   };
 }
 
-module.exports = { upsertJob, markProposalSent, updateNotes, updateMilestones, mergeMilestonePricing, getJobs, getJob, getStats };
+function clearAllJobs() {
+  const d = getDb();
+  const info = d.prepare('DELETE FROM jobs').run();
+  return { deleted: info.changes };
+}
+
+module.exports = { upsertJob, markProposalSent, updateNotes, updateMilestones, mergeMilestonePricing, getJobs, getJob, getStats, clearAllJobs };
