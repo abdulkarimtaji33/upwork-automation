@@ -423,17 +423,43 @@ function formatJobPrice(job) {
   return m ? m[0] : (jt && /hourly|fixed/i.test(jt) ? jt : '');
 }
 
-function parsePostedDays(s) {
-  if (!s) return 9999;
+function parsePostedMs(s) {
+  if (!s) return null;
   const t = String(s).toLowerCase();
-  if (/minute|hour|just now/.test(t)) return 0;
-  if (t.includes('yesterday')) return 1;
-  const d = t.match(/(\d+)\s*day/);   if (d) return Number(d[1]);
-  const w = t.match(/(\d+)\s*week/);  if (w) return Number(w[1]) * 7;
-  if (t.includes('week')) return 7;
-  const mo = t.match(/(\d+)\s*month/); if (mo) return Number(mo[1]) * 30;
-  if (t.includes('month')) return 30;
-  return 9999;
+  const min = t.match(/(\d+)\s*minute/);  if (min) return Number(min[1]) * 60 * 1000;
+  const hr  = t.match(/(\d+)\s*hour/);    if (hr)  return Number(hr[1])  * 3600 * 1000;
+  if (/just now/.test(t))                          return 0;
+  if (t.includes('yesterday'))                     return 86400 * 1000;
+  const d  = t.match(/(\d+)\s*day/);      if (d)   return Number(d[1])  * 86400 * 1000;
+  const w  = t.match(/(\d+)\s*week/);     if (w)   return Number(w[1])  * 7 * 86400 * 1000;
+  if (t.includes('week'))                          return 7 * 86400 * 1000;
+  const mo = t.match(/(\d+)\s*month/);    if (mo)  return Number(mo[1]) * 30 * 86400 * 1000;
+  if (t.includes('month'))                         return 30 * 86400 * 1000;
+  return null;
+}
+
+function parsePostedDays(s) {
+  const ms = parsePostedMs(s);
+  if (ms === null) return 9999;
+  return ms / 86400000;
+}
+
+function formatPostedAt(job) {
+  if (!job.postedAt) return '';
+  const offsetMs = parsePostedMs(job.postedAt);
+  if (offsetMs === null) return job.postedAt;
+  if (!job.createdAt) return job.postedAt;
+  const actualPosted = new Date(job.createdAt).getTime() - offsetMs;
+  const agoMs = Date.now() - actualPosted;
+  const agoMin = Math.round(agoMs / 60000);
+  if (agoMin < 60)  return `${agoMin}m ago`;
+  const agoHr = Math.round(agoMs / 3600000);
+  if (agoHr < 24)   return `${agoHr}h ago`;
+  const agoDays = Math.round(agoMs / 86400000);
+  if (agoDays === 1) return 'Yesterday';
+  if (agoDays < 7)  return `${agoDays} days ago`;
+  if (agoDays < 30) return `${Math.round(agoDays / 7)}w ago`;
+  return `${Math.round(agoDays / 30)}mo ago`;
 }
 
 function trustLevel(job) {
@@ -522,7 +548,7 @@ function buildCard(job) {
 
     <!-- Badges row -->
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
-      ${job.postedAt ? `<span class="badge" style="color:#c4b5fd;border-color:rgba(196,181,253,0.2);background:rgba(196,181,253,0.06);">🕐 ${esc(job.postedAt)}</span>` : ''}
+      ${job.postedAt ? `<span class="badge" style="color:#c4b5fd;border-color:rgba(196,181,253,0.2);background:rgba(196,181,253,0.06);" title="Raw: ${esc(job.postedAt)} · synced ${esc(relativeTime(job.createdAt))}">🕐 ${esc(formatPostedAt(job))}</span>` : ''}
       ${job.clientLocation ? `<span class="badge" style="color:#94a3b8;border-color:rgba(148,163,184,0.2);background:rgba(148,163,184,0.05);">📍 ${esc(job.clientLocation)}</span>` : ''}
       ${price ? `<span class="badge" style="color:#34d399;border-color:rgba(52,211,153,0.25);background:rgba(52,211,153,0.07);font-weight:700;">💰 ${esc(price)}</span>` : ''}
       ${job.budgetType && job.budgetType !== 'unknown' ? `<span class="badge" style="color:#94a3b8;border-color:rgba(148,163,184,0.15);background:rgba(148,163,184,0.04);text-transform:capitalize;">${esc(job.budgetType)}</span>` : ''}
