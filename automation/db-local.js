@@ -43,6 +43,9 @@ function upsertJob(job, analysis, emailSent = false) {
     hasPreviousPayments: analysis.hasPreviousPayments,
     reasoning: analysis.reasoning,
     proposalDraft: analysis.proposalDraft,
+    budgetType: analysis.budgetType || old.budgetType || '',
+    clientBudget: analysis.clientBudget || old.clientBudget || '',
+    quotedTotal: analysis.quotedTotal || old.quotedTotal || '',
     milestones: (analysis.milestones && analysis.milestones.length)
       ? analysis.milestones
       : (old.milestones || []),

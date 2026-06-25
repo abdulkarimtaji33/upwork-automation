@@ -79,20 +79,33 @@ function scoreColor(s) {
   return 'text-slate-400';
 }
 
+function formatJobPrice(job) {
+  if (job.clientBudget) return job.clientBudget;
+  const jt = job.jobType || '';
+  const m = jt.match(/\$[0-9.,]+(?:\s*[-–]\s*\$?[0-9.,]+)?[KkMm]?/);
+  return m ? m[0] : (jt && /hourly|fixed/i.test(jt) ? jt : '');
+}
+
 function buildMilestones(job) {
   if (!job.milestones || !job.milestones.length) return '';
   const items = job.milestones.map((m, i) => `
-    <li class="text-xs text-slate-300 py-1.5 border-b border-slate-800 last:border-0">
-      <span class="text-indigo-400 font-medium">${i + 1}. ${esc(m.title)}</span>
-      <span class="text-slate-500 ml-2">${esc(m.duration || '')}</span>
+    <li class="text-xs text-slate-300 py-2 border-b border-slate-800 last:border-0">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-indigo-400 font-medium">${i + 1}. ${esc(m.title)}</span>
+        <span class="text-slate-500">${esc(m.duration || '')}</span>
+        ${m.quotedPrice ? `<span class="text-emerald-400 font-semibold">${esc(m.quotedPrice)}</span>` : ''}
+      </div>
       <p class="text-slate-500 mt-0.5">${esc(m.description || '')}</p>
     </li>`).join('');
+  const total = job.quotedTotal && job.quotedTotal !== 'N/A'
+    ? `<p class="text-xs text-indigo-300 mt-2 font-medium">Recommended total: ${esc(job.quotedTotal)}</p>` : '';
   return `
-    <button onclick="toggleSection('ms-${job.jobUid}', 'ms-lbl-${job.jobUid}')" class="text-xs text-indigo-400 hover:text-indigo-300">
+    <button onclick="toggleSection('ms-${job.jobUid}')" class="text-xs text-indigo-400 hover:text-indigo-300">
       <span id="ms-lbl-${job.jobUid}">Milestones (${job.milestones.length}) ▾</span>
     </button>
     <div id="ms-${job.jobUid}" class="proposal-content mt-2">
       <ol class="rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-1">${items}</ol>
+      ${total}
     </div>`;
 }
 
@@ -109,8 +122,12 @@ function buildCard(job) {
       <a href="${esc(job.link)}" target="_blank" class="font-medium text-white text-sm hover:text-indigo-300">${esc(job.title)}</a>
       <span class="text-sm font-bold tabular-nums ${scoreColor(Number(job.score))}">${score}</span>
     </div>
-    <p class="text-xs text-slate-500 mb-1">${esc(job.clientInfo || job.clientLocation || '')}</p>
-    <p class="text-xs text-slate-600 mb-3">${job.postedAt ? 'Posted ' + esc(job.postedAt) : ''}${job.jobType ? ' · ' + esc(job.jobType) : ''}</p>
+    <p class="text-xs text-slate-500 mb-2 flex flex-wrap gap-x-3 gap-y-1">
+      ${job.clientLocation ? `<span>📍 ${esc(job.clientLocation)}</span>` : ''}
+      ${formatJobPrice(job) ? `<span class="text-emerald-400 font-medium">💵 ${esc(formatJobPrice(job))}</span>` : ''}
+      ${job.budgetType && job.budgetType !== 'unknown' ? `<span class="text-slate-600">${esc(job.budgetType)}</span>` : ''}
+    </p>
+    <p class="text-xs text-slate-600 mb-3">${job.postedAt ? 'Posted ' + esc(job.postedAt) : ''}${job.experienceLevel ? ' · ' + esc(job.experienceLevel) : ''}${job.quotedTotal && job.quotedTotal !== 'N/A' ? ' · Bid ' + esc(job.quotedTotal) : ''}</p>
     <div class="flex flex-wrap gap-3 items-center mb-2">
       <a href="${esc(job.link)}" target="_blank" class="text-xs text-slate-400 underline">Open on Upwork</a>
       ${job.proposalDraft ? `<button onclick="toggleSection('proposal-${job.jobUid}', 'prop-lbl-${job.jobUid}')" class="text-xs text-indigo-400"><span id="prop-lbl-${job.jobUid}">Proposal draft ▾</span></button>` : ''}

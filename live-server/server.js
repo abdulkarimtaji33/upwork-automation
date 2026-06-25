@@ -73,11 +73,21 @@ app.post('/api/jobs', requireApiKey, (req, res) => {
 });
 
 app.post('/api/jobs/:jobUid/milestones', requireApiKey, (req, res) => {
-  const { milestones } = req.body;
+  const { milestones, force } = req.body;
   if (!Array.isArray(milestones) || !milestones.length) {
     return res.status(400).json({ ok: false, error: 'milestones array required' });
   }
-  const job = db.updateMilestones(req.params.jobUid, milestones);
+  const job = db.updateMilestones(req.params.jobUid, milestones, { force: !!force });
+  if (!job) return res.status(404).json({ ok: false, error: 'Job not found' });
+  res.json({ ok: true, job });
+});
+
+app.post('/api/jobs/:jobUid/milestones/prices', requireApiKey, (req, res) => {
+  const { milestones, quotedTotal } = req.body;
+  if (!Array.isArray(milestones) || !milestones.length) {
+    return res.status(400).json({ ok: false, error: 'milestones array required' });
+  }
+  const job = db.mergeMilestonePricing(req.params.jobUid, milestones, quotedTotal);
   if (!job) return res.status(404).json({ ok: false, error: 'Job not found' });
   res.json({ ok: true, job });
 });

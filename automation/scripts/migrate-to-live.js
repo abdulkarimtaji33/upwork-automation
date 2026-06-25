@@ -42,22 +42,25 @@ function rowToPayload(row) {
     clientInfo: row.clientInfo,
     fullDescription: row.fullDescription,
   };
-  const analysis = {
-    relevanceScore: row.score,
-    isRelevant: row.isRelevant,
-    clientTrust: row.clientTrust,
-    hasPreviousPayments: row.hasPreviousPayments,
-    reasoning: row.reasoning,
-    proposalDraft: row.proposalDraft,
-    milestones: row.milestones || [],
-  };
+    const analysis = {
+      relevanceScore: row.score,
+      isRelevant: row.isRelevant,
+      clientTrust: row.clientTrust,
+      hasPreviousPayments: row.hasPreviousPayments,
+      reasoning: row.reasoning,
+      proposalDraft: row.proposalDraft,
+      budgetType: row.budgetType || '',
+      clientBudget: row.clientBudget || '',
+      quotedTotal: row.quotedTotal || '',
+      milestones: row.milestones || [],
+    };
   return { job, analysis, emailSent: !!row.emailSent };
 }
 
 async function main() {
   if (!SKIP_BACKFILL) {
-    console.log('Step 1: backfill missing milestones locally…');
-    require('child_process').execSync('node scripts/backfill-milestones.js', {
+    console.log('Step 1: backfill milestone prices locally…');
+    require('child_process').execSync('node scripts/backfill-milestones.js prices', {
       cwd: path.join(__dirname, '..'),
       stdio: 'inherit',
       env: process.env,
@@ -98,10 +101,15 @@ async function main() {
     }
 
     if (row.milestones?.length) {
-      await fetch(`${REMOTE_DB_URL}/api/jobs/${row.jobUid}/milestones`, {
+      const hasPrices = row.milestones.every((m) => m.quotedPrice);
+      const path = hasPrices ? 'milestones/prices' : 'milestones';
+      const body = hasPrices
+        ? { milestones: row.milestones, quotedTotal: row.quotedTotal || '' }
+        : { milestones: row.milestones, force: true };
+      await fetch(`${REMOTE_DB_URL}/api/jobs/${row.jobUid}/${path}`, {
         method: 'POST',
         headers: headers(),
-        body: JSON.stringify({ milestones: row.milestones }),
+        body: JSON.stringify(body),
       }).catch(() => {});
     }
   }

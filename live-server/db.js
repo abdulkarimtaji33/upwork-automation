@@ -52,6 +52,13 @@ function getDb() {
       CREATE INDEX IF NOT EXISTS idx_jobs_proposal_sent ON jobs(proposal_sent);
       CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at);
     `);
+    for (const sql of [
+      'ALTER TABLE jobs ADD COLUMN budget_type TEXT',
+      'ALTER TABLE jobs ADD COLUMN client_budget TEXT',
+      'ALTER TABLE jobs ADD COLUMN quoted_total TEXT',
+    ]) {
+      try { db.exec(sql); } catch { /* already exists */ }
+    }
   }
   return db;
 }
@@ -83,6 +90,9 @@ function rowToJob(row) {
     hasPreviousPayments: !!row.has_previous_payments,
     reasoning: row.reasoning,
     proposalDraft: row.proposal_draft,
+    budgetType: row.budget_type || '',
+    clientBudget: row.client_budget || '',
+    quotedTotal: row.quoted_total || '',
     milestones: row.milestones ? JSON.parse(row.milestones) : [],
     emailSent: !!row.email_sent,
     proposalSent: !!row.proposal_sent,
@@ -130,6 +140,9 @@ function upsertJob(job, analysis, emailSent = false) {
     has_previous_payments: analysis.hasPreviousPayments ? 1 : 0,
     reasoning: analysis.reasoning ?? '',
     proposal_draft: analysis.proposalDraft ?? '',
+    budget_type: analysis.budgetType || existing?.budget_type || '',
+    client_budget: analysis.clientBudget || existing?.client_budget || '',
+    quoted_total: analysis.quotedTotal || existing?.quoted_total || '',
     milestones: milestonesJson,
     email_sent: (emailSent || existing?.email_sent) ? 1 : 0,
     proposal_sent: existing?.proposal_sent ?? 0,
@@ -147,6 +160,7 @@ function upsertJob(job, analysis, emailSent = false) {
       total_hires, hire_rate, member_since, client_info, full_description,
       score, is_relevant, client_trust, has_previous_payments, reasoning,
       proposal_draft, milestones, email_sent, proposal_sent, proposal_sent_at,
+      budget_type, client_budget, quoted_total,
       notes, evidence_path, created_at, updated_at
     ) VALUES (
       @job_uid, @title, @link, @posted_at, @job_type, @experience_level, @duration, @skills,
@@ -154,6 +168,7 @@ function upsertJob(job, analysis, emailSent = false) {
       @total_hires, @hire_rate, @member_since, @client_info, @full_description,
       @score, @is_relevant, @client_trust, @has_previous_payments, @reasoning,
       @proposal_draft, @milestones, @email_sent, @proposal_sent, @proposal_sent_at,
+      @budget_type, @client_budget, @quoted_total,
       @notes, @evidence_path, @created_at, @updated_at
     )
     ON CONFLICT(job_uid) DO UPDATE SET
@@ -180,6 +195,9 @@ function upsertJob(job, analysis, emailSent = false) {
       has_previous_payments = excluded.has_previous_payments,
       reasoning = excluded.reasoning,
       proposal_draft = excluded.proposal_draft,
+      budget_type = CASE WHEN excluded.budget_type != '' THEN excluded.budget_type ELSE jobs.budget_type END,
+      client_budget = CASE WHEN excluded.client_budget != '' THEN excluded.client_budget ELSE jobs.client_budget END,
+      quoted_total = CASE WHEN excluded.quoted_total != '' AND excluded.quoted_total != 'N/A' THEN excluded.quoted_total ELSE jobs.quoted_total END,
       milestones = CASE
         WHEN excluded.milestones IS NOT NULL AND excluded.milestones != '[]' THEN excluded.milestones
         ELSE jobs.milestones
@@ -223,15 +241,32 @@ function updateNotes(jobUid, notes) {
   return rowToJob(d.prepare('SELECT * FROM jobs WHERE job_uid = ?').get(jobUid));
 }
 
-function updateMilestones(jobUid, milestones) {
+function updateMilestones(jobUid, milestones, { force = false } = {}) {
   const d = getDb();
   const existing = d.prepare('SELECT * FROM jobs WHERE job_uid = ?').get(jobUid);
   if (!existing) return null;
   const current = existing.milestones ? JSON.parse(existing.milestones) : [];
-  if (current.length > 0) return rowToJob(existing);
+  if (current.length > 0 && !force) return rowToJob(existing);
   if (!milestones || !milestones.length) return rowToJob(existing);
   d.prepare('UPDATE jobs SET milestones = ?, updated_at = ? WHERE job_uid = ?')
     .run(JSON.stringify(milestones), new Date().toISOString(), jobUid);
+  return rowToJob(d.prepare('SELECT * FROM jobs WHERE job_uid = ?').get(jobUid));
+}
+
+function mergeMilestonePricing(jobUid, milestones, quotedTotal) {
+  const d = getDb();
+  const existing = d.prepare('SELECT * FROM jobs WHERE job_uid = ?').get(jobUid);
+  if (!existing) return null;
+  const current = existing.milestones ? JSON.parse(existing.milestones) : [];
+  if (!current.length) return null;
+  const merged = current.map((m, i) => ({
+    ...m,
+    priceType: milestones[i]?.priceType || m.priceType,
+    quotedPrice: milestones[i]?.quotedPrice || m.quotedPrice,
+  }));
+  const qt = quotedTotal || existing.quoted_total || '';
+  d.prepare('UPDATE jobs SET milestones = ?, quoted_total = ?, updated_at = ? WHERE job_uid = ?')
+    .run(JSON.stringify(merged), qt, new Date().toISOString(), jobUid);
   return rowToJob(d.prepare('SELECT * FROM jobs WHERE job_uid = ?').get(jobUid));
 }
 
@@ -278,4 +313,4 @@ function getStats() {
   };
 }
 
-module.exports = { upsertJob, markProposalSent, updateNotes, updateMilestones, getJobs, getJob, getStats };
+module.exports = { upsertJob, markProposalSent, updateNotes, updateMilestones, mergeMilestonePricing, getJobs, getJob, getStats };

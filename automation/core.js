@@ -212,31 +212,66 @@ const ANALYSIS_SCHEMA = {
     hasPreviousPayments: { type: 'boolean' },
     reasoning:           { type: 'string' },
     proposalDraft:       { type: 'string' },
+    budgetType:          { type: 'string', enum: ['hourly', 'fixed', 'unknown'] },
+    clientBudget:        { type: 'string' },
+    quotedTotal:           { type: 'string' },
     milestones: {
       type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          title:       { type: 'string' },
-          description: { type: 'string' },
-          duration:    { type: 'string' },
-        },
-        required: ['title', 'description', 'duration'],
-        additionalProperties: false,
-      },
+      items: MILESTONE_ITEM_SCHEMA,
     },
   },
-  required: ['isRelevant', 'relevanceScore', 'clientTrust', 'hasPreviousPayments', 'reasoning', 'proposalDraft', 'milestones'],
+  required: ['isRelevant', 'relevanceScore', 'clientTrust', 'hasPreviousPayments', 'reasoning', 'proposalDraft', 'budgetType', 'clientBudget', 'quotedTotal', 'milestones'],
   additionalProperties: false,
 };
 
 async function analyzeJob(job) {
   const s = loadSettings();
+  const pricing = parseJobPricing(job.jobType);
   const res = await openai.chat.completions.create({
     model: s.aiModel || 'gpt-4o-mini',
     messages: [
       { role: 'system', content: s.aiSystemPrompt },
-      { role: 'user', content: `Analyze this Upwork job posting and determine if it is relevant:\n\nJob Title: ${job.title}\nFull Job Description: ${job.fullDescription || job.description}\nJob URL: ${job.link}\nPosted: ${job.postedAt}\nJob Type: ${job.jobType}\nExperience Level: ${job.experienceLevel}\nSkills: ${job.skills}\nProposals on job: ${job.proposals}\nClient rating: ${job.clientRating}\n\nClient Information:\n- Payment Verified: ${job.paymentVerified ? 'Yes' : 'No'}\n- Total Spent: $${job.totalSpent}\n- Total Hires: ${job.totalHires}\n- Hire Rate: ${job.hireRate}%\n- Member Since: ${job.memberSince || 'Unknown'}\n- Location: ${job.clientLocation || 'Unknown'}\n- Client Summary: ${job.clientInfo || 'Limited client data'}\n- Job page HTML fetched: ${job.htmlFetched ? 'Yes' : 'No'}\n\nFreelancer applying:\n- Name: ${s.freelancerName || 'the freelancer'}\n${s.freelancerPortfolio ? `- Portfolio: ${s.freelancerPortfolio}\n` : ''}\nEvaluate client trustworthiness, job quality, and relevance to: ${s.aiRelevanceKeywords}.\n${s.aiExcludeKeywords ? `Exclude or deprioritize jobs about: ${s.aiExcludeKeywords}.\n` : ''}\nWhen writing proposalDraft: address the client directly, introduce the freelancer by name (${s.freelancerName || 'the freelancer'}), reference specific details from the job description to show genuine interest, and${s.freelancerPortfolio ? ` include the portfolio link (${s.freelancerPortfolio}) naturally in context,` : ''} keep it concise and professional.\n\nProvide:\n- isRelevant, relevanceScore (0-100), clientTrust, hasPreviousPayments, reasoning\n- proposalDraft (the cover letter text only — no milestones inside it)\n- milestones: if isRelevant, break the project into 3-5 logical delivery milestones, each with a title, a one-sentence description of what gets delivered, and a realistic duration estimate (e.g. "3 days", "1 week"). If not relevant, return an empty array.` },
+      { role: 'user', content: `Analyze this Upwork job posting and determine if it is relevant:
+
+Job Title: ${job.title}
+Full Job Description: ${job.fullDescription || job.description}
+Job URL: ${job.link}
+Posted: ${job.postedAt}
+Job Type / Rate: ${job.jobType}
+Experience Level: ${job.experienceLevel}
+Estimated Duration: ${job.duration || 'Unknown'}
+Skills: ${job.skills}
+Proposals on job: ${job.proposals}
+Client rating: ${job.clientRating}
+
+Client Information:
+- Payment Verified: ${job.paymentVerified ? 'Yes' : 'No'}
+- Total Spent: $${job.totalSpent}
+- Total Hires: ${job.totalHires}
+- Hire Rate: ${job.hireRate}%
+- Member Since: ${job.memberSince || 'Unknown'}
+- Location: ${job.clientLocation || 'Unknown'}
+- Client Summary: ${job.clientInfo || 'Limited client data'}
+- Job page HTML fetched: ${job.htmlFetched ? 'Yes' : 'No'}
+- Detected budget type: ${pricing.budgetType}
+- Client budget/rate text: ${pricing.clientBudget || job.jobType || 'Unknown'}
+
+Freelancer applying:
+- Name: ${s.freelancerName || 'the freelancer'}
+${s.freelancerPortfolio ? `- Portfolio: ${s.freelancerPortfolio}\n` : ''}
+Evaluate client trustworthiness, job quality, and relevance to: ${s.aiRelevanceKeywords}.
+${s.aiExcludeKeywords ? `Exclude or deprioritize jobs about: ${s.aiExcludeKeywords}.\n` : ''}
+When writing proposalDraft: address the client directly, introduce the freelancer by name (${s.freelancerName || 'the freelancer'}), reference specific details from the job description to show genuine interest, and${s.freelancerPortfolio ? ` include the portfolio link (${s.freelancerPortfolio}) naturally in context,` : ''} keep it concise and professional.
+
+Provide:
+- isRelevant, relevanceScore (0-100), clientTrust, hasPreviousPayments, reasoning
+- proposalDraft (cover letter only — no milestones inside it)
+- budgetType: hourly | fixed | unknown (from job posting)
+- clientBudget: copy the client's stated rate/budget (e.g. "$25–$45/hr" or "$2,000 fixed")
+- quotedTotal: your recommended total bid for the whole project
+- milestones: if isRelevant, 3-5 delivery milestones. Each needs title, description, duration, priceType (hourly|fixed), and quotedPrice (e.g. "$40/hr" or "$600"). Match pricing style to budgetType.
+${milestonePricingPrompt(job)}
+If not relevant, return empty milestones array and quotedTotal "N/A".` },
     ],
     response_format: { type: 'json_schema', json_schema: { name: 'job_analysis', strict: true, schema: ANALYSIS_SCHEMA } },
     temperature: 0.4,
@@ -252,6 +287,11 @@ async function sendEmail(job, analysis, recipient) {
 
 // ─── DB ───────────────────────────────────────────────────────────────────────
 const db = require('./db');
+const {
+  MILESTONE_ITEM_SCHEMA,
+  milestonePricingPrompt,
+  parseJobPricing,
+} = require('./milestone-utils');
 
 // ─── Main cycle ───────────────────────────────────────────────────────────────
 let running       = false;

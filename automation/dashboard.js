@@ -101,6 +101,10 @@ emitter.on('job:analyzed', (d) => {
       clientTrust:     d.analysis.clientTrust,
       reasoning:       d.analysis.reasoning,
       proposalDraft:   d.analysis.proposalDraft,
+      budgetType:      d.analysis.budgetType,
+      clientBudget:    d.analysis.clientBudget,
+      quotedTotal:     d.analysis.quotedTotal,
+      milestones:      d.analysis.milestones || [],
       time:            new Date().toISOString(),
     };
     store.relevantJobs.unshift(card);
